@@ -6,11 +6,24 @@ and points of interest on Calvin's campus. This is the CS 262 team's client-side
 ## Screens
 
 - **Landing** ([src/app/index.tsx](src/app/index.tsx)) — the introductory screen: app pitch
-  and a "Find a Room" call to action.
+  and a feature link to Room Search.
 - **Finder** ([src/app/finder.tsx](src/app/finder.tsx)) — the main data screen: a searchable
   dropdown of campus locations, a toggleable list of points of interest (restrooms, printers,
   water fountains, vending machines), and a mock map with pins. All data (locations and points
   of interest) is hard-coded in `finder.tsx` for this prototype.
+- **Room Search** ([src/app/room-search.tsx](src/app/room-search.tsx)) — search campus buildings,
+  select a floor, and inspect its zoomable floor map. The image and SVG overlay share the image's
+  pixel coordinates; the viewer accepts room-highlight polygons and route paths.
+
+Floor-map PNGs and their dimension manifest are generated from the PDFs in
+`../calvin-map/Building & Campus Plans/Academic & Auxiliary Buildings`:
+
+```bash
+npm run render:floorplans
+```
+
+Run this command after adding or changing a source floor plan. Room highlight and route coordinates
+should be measured against the generated PNG dimensions.
 
 ## Get started
 
@@ -40,9 +53,8 @@ This project uses [file-based routing](https://docs.expo.dev/router/introduction
 
 Tests use [Jest](https://jestjs.io/) via the `jest-expo` preset and
 [React Native Testing Library](https://callstack.github.io/react-native-testing-library/),
-rendering real routes through `expo-router/testing-library`. They cover both screens: content
-rendering, navigation between the landing and finder screens, toggling points of interest, and
-selecting a location from the dropdown.
+rendering real routes through `expo-router/testing-library`. They cover landing navigation, Finder
+controls, and Room Search building and floor selection.
 
 ```bash
 npm test        # run the suite once
