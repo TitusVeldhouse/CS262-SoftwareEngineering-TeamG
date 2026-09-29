@@ -2,7 +2,7 @@
 // pick a campus location from a dropdown (highlighting it on a mock map) and
 // filter which points of interest are shown, all backed by hard-coded data.
 import { useState } from "react";
-import { Text, View, Pressable, ScrollView, StyleSheet } from "react-native";
+import { Text, View, Pressable, ScrollView, StyleSheet, Image } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import {
   useFonts,
@@ -18,23 +18,24 @@ const INK = "#101828";
 const SUBTLE = "#5B6472";
 const CARD_BG = "#FFFFFF";
 const BORDER = "#E6EAF0";
-const MAP_BG = "#E7F0FE";
+const MAP_BG = "#F8FAFC";
+const CAMPUS_MAP_IMAGE = require("../../assets/images/campus-map.png");
 
 // Mocked campus locations. `top`/`left` are percentage offsets used to
 // position each pin over the (also mocked) map background.
 export const LOCATIONS = [
-  { name: "Hekman Library", top: "22%", left: "38%" },
-  { name: "Covenant Fine Arts Center", top: "32%", left: "18%" },
-  { name: "Spoelhof Center", top: "44%", left: "50%" },
-  { name: "Fieldhouse", top: "78%", left: "68%" },
-  { name: "Hiemenga Hall", top: "56%", left: "28%" },
-  { name: "Devos Communication Building", top: "36%", left: "64%" },
-  { name: "Science Building", top: "50%", left: "16%" },
-  { name: "DeVries Hall", top: "64%", left: "52%" },
-  { name: "North Hall", top: "14%", left: "60%" },
-  { name: "Chapel", top: "46%", left: "36%" },
-  { name: "Commons Annex", top: "70%", left: "24%" },
-  { name: "Commons", top: "60%", left: "72%" },
+  { name: "Hekman Library", top: "62.3%", left: "31.2%" },
+  { name: "Covenant Fine Arts Center", top: "58.1%", left: "37.4%" },
+  { name: "Spoelhof Center", top: "63.3%", left: "24.2%" },
+  { name: "Fieldhouse", top: "39.7%", left: "23.8%" },
+  { name: "Hiemenga Hall", top: "64.1%", left: "28.3%" },
+  { name: "Devos Communication Building", top: "61.8%", left: "46.6%" },
+  { name: "Science Building", top: "54.6%", left: "25.7%" },
+  { name: "DeVries Hall", top: "55.0%", left: "23.5%" },
+  { name: "North Hall", top: "51.8%", left: "26.6%" },
+  { name: "Chapel", top: "66.5%", left: "27.4%" },
+  { name: "Commons Annex", top: "58.7%", left: "32.5%" },
+  { name: "Commons", top: "56.5%", left: "32.8%" },
 ] as const;
 
 // Derives a union of literal location names ("Hekman Library" | ...) from
@@ -140,17 +141,45 @@ export default function Finder() {
         {/* Mock map: one dot per LOCATIONS entry, positioned with its
             top/left percentages. The selected location's dot is enlarged
             and colored via the pinActive style. */}
-        <View style={styles.mapArea}>
-          {LOCATIONS.map((loc) => (
-            <View
-              key={loc.name}
-              style={[
-                styles.pin,
-                loc.name === selected && styles.pinActive,
-                { top: loc.top, left: loc.left },
-              ]}
-            />
-          ))}
+        <View style={styles.mapCanvas}>
+          <Image
+            source={CAMPUS_MAP_IMAGE}
+            style={styles.mapImage}
+            resizeMode="contain"
+            testID="campus-map-image"
+          />
+          {LOCATIONS.map((loc) => {
+            const isSelected = loc.name === selected;
+            return (
+              <Pressable
+                key={loc.name}
+                testID={`pin-${loc.name}`}
+                accessibilityRole="button"
+                accessibilityLabel={loc.name}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                style={[
+                  styles.pinWrapper,
+                  { top: loc.top, left: loc.left },
+                  isSelected && styles.pinWrapperActive,
+                ]}
+                onPress={() => setSelected(loc.name)}
+              >
+                <View
+                  style={[
+                    styles.pin,
+                    isSelected && styles.pinActive,
+                  ]}
+                />
+                {isSelected && (
+                  <View style={styles.pinLabelBadge}>
+                    <Text style={styles.pinLabelText} numberOfLines={1}>
+                      {loc.name}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Dropdown: trigger shows the current selection; tapping it toggles
@@ -293,27 +322,80 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
-    backgroundColor: MAP_BG,
+    backgroundColor: "#F1F5F9",
     overflow: "hidden",
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  mapArea: {
-    ...StyleSheet.absoluteFill,
+  mapCanvas: {
+    width: "100%",
+    aspectRatio: 2479 / 1944,
+    position: "relative",
+    backgroundColor: "#FFFFFF",
+  },
+  mapImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+    top: 0,
+    left: 0,
+  },
+  pinWrapper: {
+    position: "absolute",
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [{ translateX: -22 }, { translateY: -22 }],
+    zIndex: 4,
+  },
+  pinWrapperActive: {
+    zIndex: 8,
   },
   pin: {
-    position: "absolute",
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: "#A9C6EF",
-    borderWidth: 2,
+    backgroundColor: "#208AEF",
+    borderWidth: 2.5,
     borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   pinActive: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: ACCENT,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#DC2626",
     borderWidth: 3,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  pinLabelBadge: {
+    position: "absolute",
+    bottom: 38,
+    backgroundColor: INK,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  pinLabelText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
   },
 
   // Dropdown
