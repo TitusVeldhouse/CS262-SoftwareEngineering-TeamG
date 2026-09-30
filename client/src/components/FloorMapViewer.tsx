@@ -12,15 +12,14 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import {
-  Gesture,
-  GestureDetector,
-  GestureHandlerRootView,
-} from "react-native-gesture-handler";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, G, Polygon, Polyline } from "react-native-svg";
+import { calculateMapFrame, clampMapScale } from "./map-geometry";
 
 // Overlay points use source-PNG pixels so they stay aligned at every zoom level.
 type MapPoint = readonly [number, number];
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 5;
 
 export type RoomHighlight = {
   id: string;
@@ -46,8 +45,6 @@ type Size = {
   height: number;
 };
 
-const MAX_SCALE = 5;
-
 function toSvgPoints(points: readonly MapPoint[]) {
   return points.map(([x, y]) => `${x},${y}`).join(" ");
 }
@@ -64,6 +61,15 @@ export default function FloorMapViewer({
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  const mapFrame = calculateMapFrame(
+    imageWidth,
+    imageHeight,
+    viewport.width,
+    viewport.height,
+  );
+  const mapWidth = mapFrame.width;
+  const mapHeight = mapFrame.height;
+
   const scale = useSharedValue(1);
   const pinchStartScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -71,24 +77,18 @@ export default function FloorMapViewer({
   const panStartX = useSharedValue(0);
   const panStartY = useSharedValue(0);
 
-  useEffect(() => {
-    scale.set(1);
-    translateX.set(0);
-    translateY.set(0);
-  }, [asset, scale, translateX, translateY]);
-
   const pinch = Gesture.Pinch()
     .onBegin(() => {
       pinchStartScale.set(scale.get());
     })
     .onUpdate((event) => {
-      scale.set(Math.min(
-        MAX_SCALE,
-        Math.max(1, pinchStartScale.get() * event.scale),
-      ));
+      const nextScale = pinchStartScale.get() * event.scale;
+      // Keep the clamp inline because pinch updates run as UI worklets.
+      scale.set(Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale)));
     });
 
-  const pan = Gesture.Pan()
+  // Leave two-finger input exclusively to the pinch recognizer.
+  const pan = Gesture.Pan().maxPointers(1)
     .onBegin(() => {
       panStartX.set(translateX.get());
       panStartY.set(translateY.get());
@@ -108,30 +108,27 @@ export default function FloorMapViewer({
     ],
   }));
 
-  // Fit the original plan inside the viewport without changing its aspect ratio.
-  const fitScale = Math.min(
-    viewport.width / imageWidth,
-    viewport.height / imageHeight,
-  );
-  const mapWidth = imageWidth * fitScale;
-  const mapHeight = imageHeight * fitScale;
-  const isLoading = !failed && (!loaded || viewport.width === 0);
+  useEffect(() => {
+    scale.set(1);
+    translateX.set(0);
+    translateY.set(0);
+  }, [asset, scale, translateX, translateY]);
+
+  const isLoading =
+    !failed && (!loaded || viewport.width === 0 || viewport.height === 0);
 
   const zoomBy = (factor: number) => {
-    scale.set(withTiming(
-      Math.min(MAX_SCALE, Math.max(1, scale.get() * factor)),
-      { duration: 140 },
-    ));
+    scale.set(withTiming(clampMapScale(scale.get() * factor), { duration: 140 }));
   };
 
-  const resetMap = () => {
+  const fitMap = () => {
     scale.set(withTiming(1, { duration: 140 }));
     translateX.set(withTiming(0, { duration: 140 }));
     translateY.set(withTiming(0, { duration: 140 }));
   };
 
   return (
-    <GestureHandlerRootView style={styles.root} testID="plan-viewer">
+    <View style={styles.root} testID="plan-viewer">
       <View
         style={styles.mapStage}
         testID="map-stage"
@@ -152,7 +149,12 @@ export default function FloorMapViewer({
               <Animated.View
                 style={[
                   styles.mapSurface,
-                  { width: mapWidth, height: mapHeight },
+                  {
+                    width: mapWidth,
+                    height: mapHeight,
+                    left: mapFrame.left,
+                    top: mapFrame.top,
+                  },
                   mapTransform,
                 ]}
                 accessibilityLabel={title}
@@ -235,9 +237,9 @@ export default function FloorMapViewer({
               <Pressable
                 testID="reset-map"
                 accessibilityRole="button"
-                accessibilityLabel="Fit map to view"
+                accessibilityLabel="Center and fit map"
                 style={styles.fitControl}
-                onPress={resetMap}
+                onPress={fitMap}
               >
                 <Text style={styles.fitControlText}>Fit</Text>
               </Pressable>
@@ -245,7 +247,7 @@ export default function FloorMapViewer({
           </>
         )}
       </View>
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
@@ -253,17 +255,15 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     overflow: "hidden",
-    backgroundColor: "#E9EEF2",
+    backgroundColor: "#FFFFFF",
   },
   mapStage: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     overflow: "hidden",
-    backgroundColor: "#E9EEF2",
+    backgroundColor: "#FFFFFF",
   },
   mapSurface: {
-    position: "relative",
+    position: "absolute",
     flexShrink: 0,
     backgroundColor: "#FFFFFF",
     elevation: 2,

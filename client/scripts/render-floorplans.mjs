@@ -19,6 +19,48 @@ const outputDirectory = outputArgument
   ? resolve(outputArgument)
   : resolve(clientDirectory, "assets/floorplans/academic-auxiliary");
 const scale = Number(process.env.FLOORPLAN_SCALE ?? 2);
+// Ignore the standard title strip and detect map artwork above it.
+const FOOTER_START = 0.875;
+const CONTENT_THRESHOLD = 248;
+
+function findMapBounds(context, width, height) {
+  const pixels = context.getImageData(0, 0, width, height).data;
+  const pageMargin = Math.round(Math.min(width, height) * 0.025);
+  const padding = Math.round(Math.min(width, height) * 0.02);
+  const footerStart = Math.floor(height * FOOTER_START);
+  let left = width;
+  let top = footerStart;
+  let right = 0;
+  let bottom = pageMargin;
+
+  for (let y = pageMargin; y < footerStart; y++) {
+    for (let x = pageMargin; x < width - pageMargin; x++) {
+      const index = (y * width + x) * 4;
+      if (Math.min(pixels[index], pixels[index + 1], pixels[index + 2]) < CONTENT_THRESHOLD) {
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+
+  if (right < left || bottom < top) {
+    throw new Error("Could not find map artwork above the title strip");
+  }
+
+  const cropLeft = Math.max(0, left - padding);
+  const cropTop = Math.max(0, top - padding);
+  const cropRight = Math.min(width, right + padding + 1);
+  const cropBottom = Math.min(footerStart, bottom + padding + 1);
+
+  return {
+    left: cropLeft,
+    top: cropTop,
+    width: cropRight - cropLeft,
+    height: cropBottom - cropTop,
+  };
+}
 
 // Source filenames encode both the building name and the floor label.
 function getPlanDetails(fileName) {
@@ -74,17 +116,34 @@ for (const sourceFile of sourceFiles) {
 
   await page.render({ canvasContext: context, viewport, canvas }).promise;
 
+  const mapBounds = findMapBounds(context, canvas.width, canvas.height);
+  const mapCanvas = createCanvas(mapBounds.width, mapBounds.height);
+  const mapContext = mapCanvas.getContext("2d");
+  mapContext.fillStyle = "#FFFFFF";
+  mapContext.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+  mapContext.drawImage(
+    canvas,
+    mapBounds.left,
+    mapBounds.top,
+    mapBounds.width,
+    mapBounds.height,
+    0,
+    0,
+    mapBounds.width,
+    mapBounds.height,
+  );
+
   const outputFile = `${parse(sourceFile).name}.png`;
   const outputPath = join(outputDirectory, outputFile);
-  await writeFile(outputPath, canvas.toBuffer("image/png"));
+  await writeFile(outputPath, mapCanvas.toBuffer("image/png"));
   renderedPlans.push({
     ...getPlanDetails(sourceFile),
     fileName: outputFile,
-    width: canvas.width,
-    height: canvas.height,
+    width: mapCanvas.width,
+    height: mapCanvas.height,
   });
   console.log(
-    `${sourceFile}: ${pdf.numPages} page(s), ${canvas.width}x${canvas.height}, ${outputPath}`,
+    `${sourceFile}: ${canvas.width}x${canvas.height} sheet -> ${mapCanvas.width}x${mapCanvas.height} map, ${outputPath}`,
   );
 
   await loadingTask.destroy();

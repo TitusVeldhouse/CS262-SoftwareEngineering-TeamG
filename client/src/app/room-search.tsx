@@ -27,6 +27,21 @@ const INK = "#101828";
 const SUBTLE = "#5B6472";
 const BG = "#F6F8FB";
 const BORDER = "#E6EAF0";
+const ACADEMIC_BUILDINGS = new Set([
+  "Covenant Fine Arts Center",
+  "Devries Hall",
+  "Devos Communication Center",
+  "Engineering Building",
+  "Hekman Library",
+  "Hiemenga Hall",
+  "North Hall",
+  "School of Business",
+  "Science Building",
+  "Spoelhof University Center",
+]);
+
+const byName = (first: CampusBuilding, second: CampusBuilding) =>
+  first.name.localeCompare(second.name);
 
 export default function RoomSearch() {
   const router = useRouter();
@@ -43,9 +58,15 @@ export default function RoomSearch() {
   });
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const filteredBuildings = BUILDINGS.filter((building) =>
+  const matchingBuildings = BUILDINGS.filter((building) =>
     building.name.toLocaleLowerCase().includes(normalizedQuery),
   );
+  const academicBuildings = matchingBuildings
+    .filter((building) => ACADEMIC_BUILDINGS.has(building.name))
+    .sort(byName);
+  const otherBuildings = matchingBuildings
+    .filter((building) => !ACADEMIC_BUILDINGS.has(building.name))
+    .sort(byName);
 
   const selectBuilding = (building: CampusBuilding) => {
     setSelectedBuilding(building);
@@ -54,6 +75,24 @@ export default function RoomSearch() {
     setQuery(building.name);
     setShowResults(false);
   };
+
+  const renderBuilding = (building: CampusBuilding) => (
+    <Pressable
+      key={building.name}
+      testID={`building-option-${building.name}`}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.buildingOption,
+        pressed && styles.optionPressed,
+      ]}
+      onPress={() => selectBuilding(building)}
+    >
+      <Text style={styles.buildingName}>{building.name}</Text>
+      <Text style={styles.floorCount}>
+        {building.floors.length} {building.floors.length === 1 ? "floor" : "floors"}
+      </Text>
+    </Pressable>
+  );
 
   if (!fontsLoaded) {
     return <View style={styles.container} testID="room-search-loading" />;
@@ -76,7 +115,12 @@ export default function RoomSearch() {
         <Text style={styles.headerTitle}>Room Search</Text>
       </View>
 
-      <View style={styles.searchArea}>
+      <View
+        style={[
+          styles.searchArea,
+          !selectedBuilding && styles.searchAreaExpanded,
+        ]}
+      >
         <TextInput
           testID="building-search-input"
           accessibilityLabel="Search campus buildings"
@@ -96,33 +140,31 @@ export default function RoomSearch() {
           autoCapitalize="words"
         />
 
-        {showResults && filteredBuildings.length > 0 && (
+        {showResults && matchingBuildings.length > 0 && (
           <ScrollView
-            style={styles.buildingResults}
+            style={[
+              styles.buildingResults,
+              !selectedBuilding && styles.buildingResultsExpanded,
+            ]}
             keyboardShouldPersistTaps="handled"
             testID="building-results"
           >
-            {filteredBuildings.map((building) => (
-              <Pressable
-                key={building.name}
-                testID={`building-option-${building.name}`}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.buildingOption,
-                  pressed && styles.optionPressed,
-                ]}
-                onPress={() => selectBuilding(building)}
-              >
-                <Text style={styles.buildingName}>{building.name}</Text>
-                <Text style={styles.floorCount}>
-                  {building.floors.length} {building.floors.length === 1 ? "floor" : "floors"}
-                </Text>
-              </Pressable>
-            ))}
+            {academicBuildings.length > 0 && (
+              <View>
+                <Text style={styles.buildingSectionTitle}>Academic buildings</Text>
+                {academicBuildings.map(renderBuilding)}
+              </View>
+            )}
+            {otherBuildings.length > 0 && (
+              <View>
+                <Text style={styles.buildingSectionTitle}>Other campus buildings</Text>
+                {otherBuildings.map(renderBuilding)}
+              </View>
+            )}
           </ScrollView>
         )}
 
-        {showResults && filteredBuildings.length === 0 && query.trim() !== "" && (
+        {showResults && matchingBuildings.length === 0 && query.trim() !== "" && (
           <Text style={styles.noResults} testID="no-building-results">
             No buildings found.
           </Text>
@@ -166,11 +208,6 @@ export default function RoomSearch() {
             </ScrollView>
           </View>
 
-          <View style={styles.planHeader}>
-            <Text style={styles.planTitle} testID="selected-plan-title">
-              {selectedFloor.label}
-            </Text>
-          </View>
           <View style={styles.planContainer}>
             <FloorMapViewer
               key={selectedFloor.asset}
@@ -181,9 +218,7 @@ export default function RoomSearch() {
             />
           </View>
         </>
-      ) : (
-        <View style={styles.emptyState} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -224,6 +259,10 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     backgroundColor: "#FFFFFF",
   },
+  searchAreaExpanded: {
+    flex: 1,
+    minHeight: 0,
+  },
   searchInput: {
     height: 48,
     borderWidth: 1,
@@ -243,6 +282,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#FFFFFF",
   },
+  buildingResultsExpanded: {
+    flex: 1,
+    maxHeight: "100%",
+  },
   buildingOption: {
     minHeight: 48,
     paddingHorizontal: 12,
@@ -252,6 +295,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
+  },
+  buildingSectionTitle: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 6,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    color: SUBTLE,
   },
   optionPressed: {
     backgroundColor: "#EAF3FE",
@@ -311,30 +362,10 @@ const styles = StyleSheet.create({
   floorOptionTextActive: {
     color: "#FFFFFF",
   },
-  planHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-    backgroundColor: "#FFFFFF",
-  },
-  planTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-    color: SUBTLE,
-  },
   planContainer: {
     flex: 1,
     minHeight: 180,
-    marginHorizontal: 16,
-    marginBottom: 16,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 8,
     backgroundColor: "#FFFFFF",
-  },
-  emptyState: {
-    flex: 1,
   },
 });
