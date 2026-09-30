@@ -18,3 +18,6 @@ CalvinFinder is for anyone visiting or navigating Calvin University who needs an
 
 The client app (Calvin Finder, an Expo / React Native prototype) lives in [client/](client/).
 See [client/README.md](client/README.md) for setup, screens, and testing instructions.
+
+## User Stories
+User stories can be accessed as a pdf in /docs
