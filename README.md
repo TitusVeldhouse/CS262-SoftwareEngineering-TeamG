@@ -20,4 +20,4 @@ The client app (Calvin Finder, an Expo / React Native prototype) lives in [clien
 See [client/README.md](client/README.md) for setup, screens, and testing instructions.
 
 ## User Stories
-User stories can be accessed as a pdf in /docs
+User stories and software requirements specification can be accessed as pdfs in /docs
