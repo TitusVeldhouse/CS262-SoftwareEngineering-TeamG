@@ -43,6 +43,7 @@ export const FEATURES = [
 // Cast because expo-router's typed routes are generated at dev-server
 // start-up and won't yet know about `/finder` on a fresh checkout.
 const FINDER_ROUTE = "/finder" as Href;
+const ROOM_SEARCH_ROUTE = "/room-search" as Href;
 
 export default function Landing() {
   const router = useRouter();
@@ -80,15 +81,40 @@ export default function Landing() {
 
       {/* One card per mocked feature in FEATURES. */}
       <View style={styles.featureList}>
-        {FEATURES.map((feature) => (
-          <View key={feature.title} style={styles.featureCard}>
-            <Text style={styles.featureIcon}>{feature.icon}</Text>
-            <View style={styles.featureText}>
-              <Text style={styles.featureTitle}>{feature.title}</Text>
-              <Text style={styles.featureBody}>{feature.body}</Text>
+        {FEATURES.map((feature) => {
+          const content = (
+            <>
+              <Text style={styles.featureIcon}>{feature.icon}</Text>
+              <View style={styles.featureText}>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureBody}>{feature.body}</Text>
+              </View>
+            </>
+          );
+
+          if (feature.title === "Classroom & Room Search") {
+            return (
+              <Pressable
+                key={feature.title}
+                testID="classroom-search-feature"
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.featureCard,
+                  pressed && styles.ctaPressed,
+                ]}
+                onPress={() => router.push(ROOM_SEARCH_ROUTE)}
+              >
+                {content}
+              </Pressable>
+            );
+          }
+
+          return (
+            <View key={feature.title} style={styles.featureCard}>
+              {content}
             </View>
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       {/* Primary call to action: push the Finder screen onto the stack. */}
