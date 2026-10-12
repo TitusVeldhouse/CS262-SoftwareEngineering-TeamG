@@ -118,4 +118,12 @@ describe("Room search screen", () => {
 
     expect(screen.getByTestId("no-building-results")).toBeTruthy();
   });
+
+  it("automatically selects a building and renders its floor plan when opened with building param", () => {
+    renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
+
+    expect(screen.getByTestId("plan-viewer")).toBeTruthy();
+    expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
+    expect(screen.getByTestId("floor-option-Level 2")).toBeTruthy();
+  });
 });

@@ -5,6 +5,16 @@ import { renderRouter, screen, fireEvent, within } from "expo-router/testing-lib
 
 import { LOCATIONS, POINTS_OF_INTEREST } from "../app/finder";
 
+jest.mock("../components/FloorMapViewer", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const { View: mockView } = jest.requireActual<typeof import("react-native")>(
+    "react-native",
+  );
+  return function MockPlanViewer() {
+    return mockReact.createElement(mockView, { testID: "plan-viewer" });
+  };
+});
+
 describe("Finder screen - Core Navigation & Default State", () => {
   it("shows the first mocked location selected by default", () => {
     // Jump straight to "/finder" so this test doesn't depend on the landing
@@ -162,5 +172,16 @@ describe("Finder screen - Building Floor Plan Access", () => {
     expect(screen.getByTestId("enter-building-button")).toBeTruthy();
     expect(screen.getByText(/View Floor Plan/i)).toBeTruthy();
   });
+
+  it("navigates to room-search when View Floor Plan is pressed", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
+    fireEvent.press(screen.getByTestId("enter-building-button"));
+
+    expect(screen.getByTestId("room-search-screen")).toBeTruthy();
+    expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
+  });
 });
+
 

@@ -38,7 +38,24 @@ export const LOCATIONS = [
   { name: "Commons", top: "56.5%", left: "32.8%" },
 ] as const;
 
+// Maps campus locations to their catalog names in room-search-data.ts / floorplan-manifest.ts
+export const CAMPUS_TO_MANIFEST_BUILDINGS: Record<string, string> = {
+  "Hekman Library": "Hekman Library",
+  "Covenant Fine Arts Center": "Covenant Fine Arts Center",
+  "Spoelhof Center": "Spoelhof University Center",
+  "Fieldhouse": "Spoelhof Fieldhouse",
+  "Hiemenga Hall": "Hiemenga Hall",
+  "Devos Communication Building": "Devos Communication Center",
+  "Science Building": "Science Building",
+  "DeVries Hall": "Devries Hall",
+  "North Hall": "North Hall",
+  "Chapel": "Chapel",
+  "Commons Annex": "Commons Annex",
+  "Commons": "Commons",
+};
+
 // Derives a union of literal location names ("Hekman Library" | ...) from
+
 // the LOCATIONS data itself, so the type always stays in sync with the data.
 type LocationName = (typeof LOCATIONS)[number]["name"];
 
@@ -162,7 +179,18 @@ export default function Finder() {
                   { top: loc.top, left: loc.left },
                   isSelected && styles.pinWrapperActive,
                 ]}
-                onPress={() => setSelected(loc.name)}
+                onPress={() => {
+                  if (isSelected && CAMPUS_TO_MANIFEST_BUILDINGS[loc.name]) {
+                    router.push({
+                      pathname: "/room-search",
+                      params: {
+                        building: CAMPUS_TO_MANIFEST_BUILDINGS[loc.name],
+                      },
+                    });
+                  } else {
+                    setSelected(loc.name);
+                  }
+                }}
               >
                 <View
                   style={[
@@ -236,8 +264,31 @@ export default function Finder() {
         {/* Card summarizing whichever location is currently selected. */}
         {activeLocation && (
           <View style={styles.resultCard} testID="result-card">
-            <Text style={styles.resultTitle}>{activeLocation.name}</Text>
-            <Text style={styles.resultSubtitle}>Showing on the map</Text>
+            <View style={styles.resultCardTextWrap}>
+              <Text style={styles.resultTitle}>{activeLocation.name}</Text>
+              <Text style={styles.resultSubtitle}>Showing on the map</Text>
+            </View>
+            {CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name] && (
+              <Pressable
+                testID="enter-building-button"
+                accessibilityRole="button"
+                accessibilityLabel={`View ${activeLocation.name} Floor Plan`}
+                style={({ pressed }) => [
+                  styles.enterBuildingButton,
+                  pressed && styles.enterBuildingButtonPressed,
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/room-search",
+                    params: {
+                      building: CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name],
+                    },
+                  })
+                }
+              >
+                <Text style={styles.enterBuildingButtonText}>View Floor Plan ›</Text>
+              </Pressable>
+            )}
           </View>
         )}
       </View>
@@ -480,11 +531,18 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
     borderRadius: 16,
     padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     shadowColor: "#0F1B2E",
     shadowOpacity: 0.1,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
+  },
+  resultCardTextWrap: {
+    flex: 1,
+    marginRight: 12,
   },
   resultTitle: {
     fontFamily: "Inter_700Bold",
@@ -496,5 +554,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: SUBTLE,
     marginTop: 2,
+  },
+  enterBuildingButton: {
+    backgroundColor: ACCENT,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  enterBuildingButtonPressed: {
+    opacity: 0.85,
+  },
+  enterBuildingButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    color: "#FFFFFF",
   },
 });

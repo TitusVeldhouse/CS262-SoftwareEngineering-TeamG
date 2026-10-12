@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import {
   useFonts,
   Inter_400Regular,
@@ -45,11 +45,29 @@ const byName = (first: CampusBuilding, second: CampusBuilding) =>
 
 export default function RoomSearch() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const params = useLocalSearchParams<{ building?: string; floor?: string }>();
+
+  const initialBuilding = params.building
+    ? BUILDINGS.find(
+        (b) => b.name.toLowerCase() === params.building?.toLowerCase(),
+      ) ?? null
+    : null;
+
+  const initialFloor = initialBuilding
+    ? (params.floor
+        ? initialBuilding.floors.find(
+            (f) =>
+              f.label.toLowerCase() === params.floor?.toLowerCase() ||
+              f.label.toLowerCase().includes(params.floor?.toLowerCase() ?? ""),
+          )
+        : null) ?? initialBuilding.floors[0] ?? null
+    : null;
+
+  const [query, setQuery] = useState(initialBuilding ? initialBuilding.name : "");
   const [selectedBuilding, setSelectedBuilding] =
-    useState<CampusBuilding | null>(null);
-  const [selectedFloor, setSelectedFloor] = useState<FloorPlan | null>(null);
-  const [showResults, setShowResults] = useState(true);
+    useState<CampusBuilding | null>(initialBuilding);
+  const [selectedFloor, setSelectedFloor] = useState<FloorPlan | null>(initialFloor);
+  const [showResults, setShowResults] = useState(!initialBuilding);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
