@@ -1,8 +1,11 @@
 import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-// expo-router uses this file as the root layout for every route under
-// src/app. A bare <Stack /> gives us native stack navigation (push/back)
-// between the screens defined by index.tsx and finder.tsx.
+// GestureHandlerRootView wraps the navigator so native gestures work on all routes.
 export default function RootLayout() {
-  return <Stack />;
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Stack />
+    </GestureHandlerRootView>
+  );
 }

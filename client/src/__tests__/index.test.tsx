@@ -5,6 +5,16 @@ import { renderRouter, screen, fireEvent } from "expo-router/testing-library";
 
 import { FEATURES } from "../app/index";
 
+jest.mock("../components/FloorMapViewer", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const { View: mockView } = jest.requireActual<typeof import("react-native")>(
+    "react-native",
+  );
+  return function MockPlanViewer() {
+    return mockReact.createElement(mockView, { testID: "plan-viewer" });
+  };
+});
+
 describe("Landing screen", () => {
   it("renders the hero copy and every feature card", () => {
     // Start the router at "/", which resolves to src/app/index.tsx (Landing).
@@ -30,5 +40,13 @@ describe("Landing screen", () => {
 
     // A successful push to /finder mounts the Finder screen in its place.
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
+  });
+
+  it("opens room search from the classroom feature", () => {
+    renderRouter("src/app", { initialUrl: "/" });
+
+    fireEvent.press(screen.getByTestId("classroom-search-feature"));
+
+    expect(screen.getByTestId("room-search-screen")).toBeTruthy();
   });
 });

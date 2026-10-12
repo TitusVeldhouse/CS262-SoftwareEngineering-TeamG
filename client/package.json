@@ -25,10 +25,12 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.9",
     "@react-native/jest-preset": "^0.86.3",
     "@testing-library/react-native": "13.3.3",
     "@types/jest": "^30.0.0",
@@ -37,6 +39,7 @@
     "eslint-config-expo": "~57.0.2",
     "jest": "~30.5.1",
     "jest-expo": "~57.0.5",
+    "pdfjs-dist": "^6.3.289",
     "react-test-renderer": "19.2.3",
     "typescript": "~6.0.3"
   },
@@ -48,7 +51,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "render:floorplans": "node scripts/render-floorplans.mjs"
   },
   "private": true,
   "jest": {
