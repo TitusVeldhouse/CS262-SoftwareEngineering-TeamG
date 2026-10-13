@@ -1,9 +1,9 @@
 // Finder screen (route "/finder") — the app's main data screen. Lets a user
 // pick a campus location from a dropdown (highlighting it on a mock map) and
 // filter which points of interest are shown, all backed by hard-coded data.
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Text, View, Pressable, ScrollView, StyleSheet, Image } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import {
   useFonts,
   Inter_400Regular,
@@ -20,6 +20,12 @@ const CARD_BG = "#FFFFFF";
 const BORDER = "#E6EAF0";
 const MAP_BG = "#F8FAFC";
 const CAMPUS_MAP_IMAGE = require("../../assets/images/campus-map.png");
+
+// Dimensions for the scrollable campus blueprint canvas (preserves 2479:1944 aspect ratio)
+export const BASE_MAP_WIDTH = 1000;
+export const BASE_MAP_HEIGHT = Math.round(1000 * (1944 / 2479)); // 784
+export const MAP_CANVAS_WIDTH = BASE_MAP_WIDTH;
+export const MAP_CANVAS_HEIGHT = BASE_MAP_HEIGHT;
 
 // Mocked campus locations. `top`/`left` are percentage offsets used to
 // position each pin over the (also mocked) map background.
@@ -71,8 +77,69 @@ type PointOfInterest = (typeof POINTS_OF_INTEREST)[number];
 
 export default function Finder() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ building?: string }>();
+
+  // Resolve matching location name if provided via route params
+  const resolveBuilding = (buildingParam?: string): LocationName | null => {
+    if (!buildingParam) return null;
+    const match = LOCATIONS.find(
+      (l) =>
+        l.name.toLowerCase() === buildingParam.toLowerCase() ||
+        CAMPUS_TO_MANIFEST_BUILDINGS[l.name]?.toLowerCase() ===
+          buildingParam.toLowerCase(),
+    );
+    return match ? (match.name as LocationName) : null;
+  };
+
+  const initialSelection = resolveBuilding(params.building) ?? LOCATIONS[0].name;
+
   // Which location is highlighted on the map / shown in the result card.
-  const [selected, setSelected] = useState<LocationName>(LOCATIONS[0].name);
+  const [selected, setSelected] = useState<LocationName>(initialSelection);
+
+  // Dynamic zoom scale for campus blueprint canvas (0.7x to 2.5x)
+  const [mapScale, setMapScale] = useState(1.0);
+  const currentWidth = Math.round(BASE_MAP_WIDTH * mapScale);
+  const currentHeight = Math.round(BASE_MAP_HEIGHT * mapScale);
+
+  const horizontalScrollRef = useRef<ScrollView>(null);
+  const verticalScrollRef = useRef<ScrollView>(null);
+
+  // Smoothly center the scroll viewport on a specific campus location
+  const centerOnLocation = (
+    locName: LocationName,
+    animated = true,
+    scale = mapScale,
+  ) => {
+    const loc = LOCATIONS.find((l) => l.name === locName);
+    if (!loc) return;
+    const leftPercent = parseFloat(loc.left) / 100;
+    const topPercent = parseFloat(loc.top) / 100;
+    const targetX = leftPercent * (BASE_MAP_WIDTH * scale);
+    const targetY = topPercent * (BASE_MAP_HEIGHT * scale);
+
+    // Center target relative to mobile screen viewport (approx 390w x 420h)
+    const scrollX = Math.max(0, targetX - 195);
+    const scrollY = Math.max(0, targetY - 210);
+
+    horizontalScrollRef.current?.scrollTo({ x: scrollX, animated });
+    verticalScrollRef.current?.scrollTo({ y: scrollY, animated });
+  };
+
+  useEffect(() => {
+    const matched = resolveBuilding(params.building);
+    if (matched) {
+      setSelected(matched);
+      centerOnLocation(matched, true, mapScale);
+    }
+  }, [params.building]);
+
+  // Center on quad/initial building on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      centerOnLocation(initialSelection, false, 1.0);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
   // Whether the location dropdown list is expanded.
   const [open, setOpen] = useState(false);
   // Which POI checkboxes are currently checked. A Set makes toggling and
@@ -121,7 +188,13 @@ export default function Finder() {
         <Pressable
           testID="back-button"
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/");
+            }
+          }}
         >
           <Text style={styles.backButtonText}>{"‹"}</Text>
         </Pressable>
@@ -155,59 +228,135 @@ export default function Finder() {
       </ScrollView>
 
       <View style={styles.mapContainer}>
-        {/* Mock map: one dot per LOCATIONS entry, positioned with its
-            top/left percentages. The selected location's dot is enlarged
-            and colored via the pinActive style. */}
-        <View style={styles.mapCanvas}>
-          <Image
-            source={CAMPUS_MAP_IMAGE}
-            style={styles.mapImage}
-            resizeMode="contain"
-            testID="campus-map-image"
-          />
-          {LOCATIONS.map((loc) => {
-            const isSelected = loc.name === selected;
-            return (
-              <Pressable
-                key={loc.name}
-                testID={`pin-${loc.name}`}
-                accessibilityRole="button"
-                accessibilityLabel={loc.name}
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                style={[
-                  styles.pinWrapper,
-                  { top: loc.top, left: loc.left },
-                  isSelected && styles.pinWrapperActive,
-                ]}
-                onPress={() => {
-                  if (isSelected && CAMPUS_TO_MANIFEST_BUILDINGS[loc.name]) {
-                    router.push({
-                      pathname: "/room-search",
-                      params: {
-                        building: CAMPUS_TO_MANIFEST_BUILDINGS[loc.name],
-                      },
-                    });
-                  } else {
-                    setSelected(loc.name);
-                  }
-                }}
-              >
-                <View
-                  style={[
-                    styles.pin,
-                    isSelected && styles.pinActive,
-                  ]}
-                />
-                {isSelected && (
-                  <View style={styles.pinLabelBadge}>
-                    <Text style={styles.pinLabelText} numberOfLines={1}>
-                      {loc.name}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
+        {/* Scrollable & zoomable 2D map viewport */}
+        <ScrollView
+          ref={horizontalScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.mapScroll}
+          contentContainerStyle={styles.mapScrollContentHorizontal}
+          maximumZoomScale={3.0}
+          minimumZoomScale={0.7}
+          testID="campus-map-scroll-horizontal"
+        >
+          <ScrollView
+            ref={verticalScrollRef}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.mapScrollContentVertical}
+            maximumZoomScale={3.0}
+            minimumZoomScale={0.7}
+            testID="campus-map-scroll-vertical"
+          >
+            <View
+              style={[
+                styles.mapCanvas,
+                { width: currentWidth, height: currentHeight },
+              ]}
+            >
+              <Image
+                source={CAMPUS_MAP_IMAGE}
+                style={styles.mapImage}
+                resizeMode="contain"
+                testID="campus-map-image"
+              />
+              {LOCATIONS.map((loc) => {
+                const isSelected = loc.name === selected;
+                return (
+                  <Pressable
+                    key={loc.name}
+                    testID={`pin-${loc.name}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={loc.name}
+                    hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                    style={[
+                      styles.pinWrapper,
+                      { top: loc.top, left: loc.left },
+                      isSelected && styles.pinWrapperActive,
+                    ]}
+                    onPress={() => {
+                      if (isSelected && CAMPUS_TO_MANIFEST_BUILDINGS[loc.name]) {
+                        router.push({
+                          pathname: "/room-search",
+                          params: {
+                            building: CAMPUS_TO_MANIFEST_BUILDINGS[loc.name],
+                          },
+                        });
+                      } else {
+                        setSelected(loc.name);
+                        centerOnLocation(loc.name, true);
+                      }
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.pin,
+                        isSelected && styles.pinActive,
+                      ]}
+                    />
+                    {isSelected && (
+                      <View style={styles.pinLabelBadge}>
+                        <Text style={styles.pinLabelText} numberOfLines={1}>
+                          {loc.name}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </ScrollView>
+
+        {/* Floating map controls: Zoom In, Zoom Out, Center Quad */}
+        <View style={styles.mapControls}>
+          <Pressable
+            testID="zoom-in"
+            accessibilityRole="button"
+            accessibilityLabel="Zoom in"
+            style={({ pressed }) => [
+              styles.mapControlBtn,
+              pressed && styles.mapControlBtnPressed,
+            ]}
+            onPress={() => {
+              const nextScale = Math.min(2.5, +(mapScale + 0.25).toFixed(2));
+              setMapScale(nextScale);
+              centerOnLocation(selected, true, nextScale);
+            }}
+          >
+            <Text style={styles.mapControlText}>+</Text>
+          </Pressable>
+          <Pressable
+            testID="zoom-out"
+            accessibilityRole="button"
+            accessibilityLabel="Zoom out"
+            style={({ pressed }) => [
+              styles.mapControlBtn,
+              pressed && styles.mapControlBtnPressed,
+            ]}
+            onPress={() => {
+              const nextScale = Math.max(0.7, +(mapScale - 0.25).toFixed(2));
+              setMapScale(nextScale);
+              centerOnLocation(selected, true, nextScale);
+            }}
+          >
+            <Text style={styles.mapControlText}>−</Text>
+          </Pressable>
+          <Pressable
+            testID="center-map-button"
+            accessibilityRole="button"
+            accessibilityLabel="Center on Campus Quad"
+            style={({ pressed }) => [
+              styles.centerMapButton,
+              pressed && styles.centerMapButtonPressed,
+            ]}
+            onPress={() => {
+              setMapScale(1.0);
+              setSelected("Hiemenga Hall");
+              centerOnLocation("Hiemenga Hall", true, 1.0);
+            }}
+          >
+            <Text style={styles.centerMapButtonText}>⌖ Quad</Text>
+          </Pressable>
         </View>
 
         {/* Dropdown: trigger shows the current selection; tapping it toggles
@@ -235,10 +384,11 @@ export default function Finder() {
                     pressed && styles.dropdownItemPressed,
                   ]}
                   onPress={() => {
-                    // Choosing an option updates the selection and closes
-                    // the dropdown in one tap.
+                    // Choosing an option updates the selection, closes
+                    // dropdown, and centers on the chosen building.
                     setSelected(loc.name);
                     setOpen(false);
+                    centerOnLocation(loc.name, true);
                   }}
                 >
                   <Text
@@ -376,14 +526,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     overflow: "hidden",
     position: "relative",
-    justifyContent: "center",
+  },
+  mapScroll: {
+    flex: 1,
+  },
+  mapScrollContentHorizontal: {
+    minWidth: "100%",
     alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  mapScrollContentVertical: {
+    minHeight: "100%",
+    alignItems: "center",
+    paddingTop: 32,
+    paddingBottom: 240,
   },
   mapCanvas: {
-    width: "100%",
-    aspectRatio: 2479 / 1944,
     position: "relative",
     backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   mapImage: {
     width: "100%",
@@ -391,6 +557,60 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
+    borderRadius: 8,
+  },
+  mapControls: {
+    position: "absolute",
+    top: 72,
+    right: 16,
+    gap: 8,
+    alignItems: "flex-end",
+    zIndex: 6,
+  },
+  mapControlBtn: {
+    width: 36,
+    height: 36,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  mapControlBtnPressed: {
+    backgroundColor: "#F1F5F9",
+  },
+  mapControlText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 20,
+    lineHeight: 22,
+    color: INK,
+  },
+  centerMapButton: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  centerMapButtonPressed: {
+    backgroundColor: "#F1F5F9",
+  },
+  centerMapButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    color: INK,
   },
   pinWrapper: {
     position: "absolute",

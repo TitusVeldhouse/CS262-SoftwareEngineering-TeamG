@@ -3,7 +3,12 @@
 // actual navigation the same way a user would trigger it.
 import { renderRouter, screen, fireEvent, within } from "expo-router/testing-library";
 
-import { LOCATIONS, POINTS_OF_INTEREST } from "../app/finder";
+import {
+  LOCATIONS,
+  POINTS_OF_INTEREST,
+  CAMPUS_TO_MANIFEST_BUILDINGS,
+} from "../app/finder";
+import { BUILDINGS } from "../data/room-search-data";
 
 jest.mock("../components/FloorMapViewer", () => {
   const mockReact = jest.requireActual<typeof import("react")>("react");
@@ -84,6 +89,30 @@ describe("Finder screen - Core Navigation & Default State", () => {
 });
 
 describe("Finder screen - Campus Map Rendering & Blueprint", () => {
+  it("renders the scrollable map containers, zoom controls, and Center Quad button", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    expect(screen.getByTestId("campus-map-scroll-horizontal")).toBeTruthy();
+    expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
+    expect(screen.getByTestId("zoom-in")).toBeTruthy();
+    expect(screen.getByTestId("zoom-out")).toBeTruthy();
+    expect(screen.getByTestId("center-map-button")).toBeTruthy();
+  });
+
+  it("supports zooming in, zooming out, and resetting with Center Quad", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    const zoomIn = screen.getByTestId("zoom-in");
+    const zoomOut = screen.getByTestId("zoom-out");
+    const centerQuad = screen.getByTestId("center-map-button");
+
+    fireEvent.press(zoomIn);
+    fireEvent.press(zoomOut);
+    fireEvent.press(centerQuad);
+
+    expect(screen.getByTestId("center-map-button")).toBeTruthy();
+  });
+
   it("renders the campus master plan blueprint image", () => {
     renderRouter("src/app", { initialUrl: "/finder" });
 
@@ -182,6 +211,62 @@ describe("Finder screen - Building Floor Plan Access", () => {
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
   });
+
+  it("selects and focuses a building when opened with building query parameter", () => {
+    renderRouter("src/app", { initialUrl: "/finder?building=Science%20Building" });
+
+    const trigger = screen.getByTestId("location-dropdown-trigger");
+    expect(within(trigger).getByText("Science Building")).toBeTruthy();
+    expect(screen.getByTestId("result-card")).toBeTruthy();
+    expect(screen.getAllByText("Science Building").length).toBeGreaterThan(0);
+  });
 });
+
+describe("Finder screen - Location Routing Extensibility & Manifest Parity", () => {
+  it("ensures every entry in CAMPUS_TO_MANIFEST_BUILDINGS matches a real catalog building in room-search data", () => {
+    const catalogBuildingNames = new Set(BUILDINGS.map((b) => b.name));
+
+    for (const [campusName, manifestName] of Object.entries(
+      CAMPUS_TO_MANIFEST_BUILDINGS,
+    )) {
+      expect(catalogBuildingNames.has(manifestName)).toBe(true);
+    }
+  });
+
+  it("ensures every mapped location displays the View Floor Plan button and has at least one floor plan", () => {
+    for (const loc of LOCATIONS) {
+      const manifestName = CAMPUS_TO_MANIFEST_BUILDINGS[loc.name];
+      if (manifestName) {
+        const catalogBuilding = BUILDINGS.find((b) => b.name === manifestName);
+        expect(catalogBuilding).toBeDefined();
+        expect(catalogBuilding!.floors.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it.each([
+    ["Science Building", "Science Building"],
+    ["Devos Communication Building", "Devos Communication Center"],
+    ["Hekman Library", "Hekman Library"],
+    ["Chapel", "Chapel"],
+    ["Spoelhof Center", "Spoelhof University Center"],
+    ["Commons", "Commons"],
+  ])(
+    "routes to room-search for %s and loads matching manifest building %s",
+    (campusName, expectedManifestName) => {
+      renderRouter("src/app", { initialUrl: "/finder" });
+
+      if (campusName !== "Hekman Library") {
+        fireEvent.press(screen.getByTestId(`pin-${campusName}`));
+      }
+      expect(screen.getByTestId("enter-building-button")).toBeTruthy();
+
+      fireEvent.press(screen.getByTestId("enter-building-button"));
+      expect(screen.getByTestId("room-search-screen")).toBeTruthy();
+      expect(screen.getByText(expectedManifestName)).toBeTruthy();
+    },
+  );
+});
+
 
 

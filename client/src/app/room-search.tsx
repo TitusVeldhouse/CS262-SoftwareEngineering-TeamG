@@ -126,7 +126,13 @@ export default function RoomSearch() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/");
+            }
+          }}
         >
           <Text style={styles.backButtonText}>‹</Text>
         </Pressable>
@@ -192,7 +198,27 @@ export default function RoomSearch() {
       {selectedBuilding && selectedFloor ? (
         <>
           <View style={styles.floorPicker}>
-            <Text style={styles.selectedBuilding}>{selectedBuilding.name}</Text>
+            <View style={styles.buildingHeaderRow}>
+              <Text style={styles.selectedBuilding}>{selectedBuilding.name}</Text>
+              <Pressable
+                testID="exit-to-campus-button"
+                accessibilityRole="button"
+                accessibilityLabel="Exit to Campus Map"
+                style={({ pressed }) => [
+                  styles.exitToCampusButton,
+                  pressed && styles.exitToCampusButtonPressed,
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/finder",
+                    params: { building: selectedBuilding.name },
+                  })
+                }
+              >
+                <Text style={styles.exitToCampusButtonIcon}>↗</Text>
+                <Text style={styles.exitToCampusButtonText}>Exit to Campus Map</Text>
+              </Pressable>
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -347,12 +373,47 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     backgroundColor: "#FFFFFF",
   },
-  selectedBuilding: {
+  buildingHeaderRow: {
     paddingHorizontal: 20,
     marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  selectedBuilding: {
+    flex: 1,
+    marginRight: 12,
     fontFamily: "Inter_700Bold",
     fontSize: 18,
     color: INK,
+  },
+  exitToCampusButton: {
+    backgroundColor: "#16A34A",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+    gap: 4,
+  },
+  exitToCampusButtonPressed: {
+    backgroundColor: "#15803D",
+    opacity: 0.9,
+  },
+  exitToCampusButtonIcon: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+  },
+  exitToCampusButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    color: "#FFFFFF",
   },
   floorOptions: {
     paddingHorizontal: 20,
@@ -382,7 +443,7 @@ const styles = StyleSheet.create({
   },
   planContainer: {
     flex: 1,
-    minHeight: 180,
+    minHeight: 280,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
   },
