@@ -138,6 +138,15 @@ export default function FloorMapViewer({
             height: nativeEvent.layout.height,
           })
         }
+        // @ts-ignore - onWheel is supported on web for trackpad and mouse wheel scrolling
+        onWheel={(e: any) => {
+          if (e?.nativeEvent?.deltaY) {
+            translateY.set(translateY.get() - e.nativeEvent.deltaY);
+          }
+          if (e?.nativeEvent?.deltaX) {
+            translateX.set(translateX.get() - e.nativeEvent.deltaX);
+          }
+        }}
       >
         {failed ? (
           <Text style={styles.message} testID="plan-load-error">

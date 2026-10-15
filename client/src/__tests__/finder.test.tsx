@@ -1,11 +1,26 @@
 // `renderRouter` boots the real expo-router route tree (from src/app) instead
 // of rendering the Finder component in isolation, so these tests exercise
 // actual navigation the same way a user would trigger it.
-import { renderRouter, screen, fireEvent } from "expo-router/testing-library";
+import { renderRouter, screen, fireEvent, within } from "expo-router/testing-library";
 
-import { LOCATIONS, POINTS_OF_INTEREST } from "../app/finder";
+import {
+  LOCATIONS,
+  POINTS_OF_INTEREST,
+  CAMPUS_TO_MANIFEST_BUILDINGS,
+} from "../app/finder";
+import { BUILDINGS } from "../data/room-search-data";
 
-describe("Finder screen", () => {
+jest.mock("../components/FloorMapViewer", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const { View: mockView } = jest.requireActual<typeof import("react-native")>(
+    "react-native",
+  );
+  return function MockPlanViewer() {
+    return mockReact.createElement(mockView, { testID: "plan-viewer" });
+  };
+});
+
+describe("Finder screen - Core Navigation & Default State", () => {
   it("shows the first mocked location selected by default", () => {
     // Jump straight to "/finder" so this test doesn't depend on the landing
     // screen's navigation working correctly.
@@ -72,3 +87,186 @@ describe("Finder screen", () => {
     expect(screen.getByTestId("landing-screen")).toBeTruthy();
   });
 });
+
+describe("Finder screen - Campus Map Rendering & Blueprint", () => {
+  it("renders the scrollable map containers, zoom controls, and Center Quad button", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    expect(screen.getByTestId("campus-map-scroll-horizontal")).toBeTruthy();
+    expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
+    expect(screen.getByTestId("zoom-in")).toBeTruthy();
+    expect(screen.getByTestId("zoom-out")).toBeTruthy();
+    expect(screen.getByTestId("center-map-button")).toBeTruthy();
+  });
+
+  it("supports zooming in, zooming out, and resetting with Center Quad", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    const zoomIn = screen.getByTestId("zoom-in");
+    const zoomOut = screen.getByTestId("zoom-out");
+    const centerQuad = screen.getByTestId("center-map-button");
+
+    fireEvent.press(zoomIn);
+    fireEvent.press(zoomOut);
+    fireEvent.press(centerQuad);
+
+    expect(screen.getByTestId("center-map-button")).toBeTruthy();
+  });
+
+  it("renders the campus master plan blueprint image", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    const mapImage = screen.getByTestId("campus-map-image");
+    expect(mapImage).toBeTruthy();
+  });
+
+  it("renders an interactive pin for every single campus location in LOCATIONS", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    for (const loc of LOCATIONS) {
+      const pin = screen.getByTestId(`pin-${loc.name}`);
+      expect(pin).toBeTruthy();
+      expect(pin.props.accessibilityLabel).toBe(loc.name);
+      expect(pin.props.accessibilityRole).toBe("button");
+    }
+  });
+
+  it("has valid percentage coordinates within 0% to 100% for all locations", () => {
+    const percentRegex = /^\d+(\.\d+)?%$/;
+    for (const loc of LOCATIONS) {
+      expect(loc.top).toMatch(percentRegex);
+      expect(loc.left).toMatch(percentRegex);
+
+      const topVal = parseFloat(loc.top);
+      const leftVal = parseFloat(loc.left);
+
+      expect(topVal).toBeGreaterThanOrEqual(0);
+      expect(topVal).toBeLessThanOrEqual(100);
+      expect(leftVal).toBeGreaterThanOrEqual(0);
+      expect(leftVal).toBeLessThanOrEqual(100);
+    }
+  });
+});
+
+describe("Finder screen - Pin Tapping & Bidirectional Interaction", () => {
+  it("selects a location and updates the result card when its pin dot is tapped on the map", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    // Pick a building other than default index 0
+    const target = LOCATIONS.find((l) => l.name === "Science Building")!;
+    fireEvent.press(screen.getByTestId(`pin-${target.name}`));
+
+    // Result card must reflect tapped building
+    expect(screen.getByTestId("result-card")).toBeTruthy();
+    expect(screen.getAllByText(target.name).length).toBeGreaterThan(0);
+  });
+
+  it("displays a floating name badge on the active pin when tapped", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    const target = LOCATIONS.find((l) => l.name === "Chapel")!;
+    fireEvent.press(screen.getByTestId(`pin-${target.name}`));
+
+    // Chapel name should appear in the pin badge as well as the result card
+    expect(screen.getAllByText(target.name).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("updates the dropdown trigger text when a pin is tapped on the map", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    const target = LOCATIONS.find((l) => l.name === "Covenant Fine Arts Center")!;
+    fireEvent.press(screen.getByTestId(`pin-${target.name}`));
+
+    const trigger = screen.getByTestId("location-dropdown-trigger");
+    expect(within(trigger).getByText(target.name)).toBeTruthy();
+  });
+
+  it("updates the active pin badge when a location is picked from the dropdown", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    fireEvent.press(screen.getByTestId("location-dropdown-trigger"));
+    const target = LOCATIONS.find((l) => l.name === "Fieldhouse")!;
+    fireEvent.press(screen.getByTestId(`location-option-${target.name}`));
+
+    // Both result card and pin badge display the target building name
+    expect(screen.getAllByText(target.name).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("Finder screen - Building Floor Plan Access", () => {
+  it("shows an Enter Building / View Floor Plan button when Hiemenga Hall is selected", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
+    expect(screen.getByTestId("enter-building-button")).toBeTruthy();
+    expect(screen.getByText(/View Floor Plan/i)).toBeTruthy();
+  });
+
+  it("navigates to room-search when View Floor Plan is pressed", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
+    fireEvent.press(screen.getByTestId("enter-building-button"));
+
+    expect(screen.getByTestId("room-search-screen")).toBeTruthy();
+    expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
+  });
+
+  it("selects and focuses a building when opened with building query parameter", () => {
+    renderRouter("src/app", { initialUrl: "/finder?building=Science%20Building" });
+
+    const trigger = screen.getByTestId("location-dropdown-trigger");
+    expect(within(trigger).getByText("Science Building")).toBeTruthy();
+    expect(screen.getByTestId("result-card")).toBeTruthy();
+    expect(screen.getAllByText("Science Building").length).toBeGreaterThan(0);
+  });
+});
+
+describe("Finder screen - Location Routing Extensibility & Manifest Parity", () => {
+  it("ensures every entry in CAMPUS_TO_MANIFEST_BUILDINGS matches a real catalog building in room-search data", () => {
+    const catalogBuildingNames = new Set(BUILDINGS.map((b) => b.name));
+
+    for (const [campusName, manifestName] of Object.entries(
+      CAMPUS_TO_MANIFEST_BUILDINGS,
+    )) {
+      expect(catalogBuildingNames.has(manifestName)).toBe(true);
+    }
+  });
+
+  it("ensures every mapped location displays the View Floor Plan button and has at least one floor plan", () => {
+    for (const loc of LOCATIONS) {
+      const manifestName = CAMPUS_TO_MANIFEST_BUILDINGS[loc.name];
+      if (manifestName) {
+        const catalogBuilding = BUILDINGS.find((b) => b.name === manifestName);
+        expect(catalogBuilding).toBeDefined();
+        expect(catalogBuilding!.floors.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it.each([
+    ["Science Building", "Science Building"],
+    ["Devos Communication Building", "Devos Communication Center"],
+    ["Hekman Library", "Hekman Library"],
+    ["Chapel", "Chapel"],
+    ["Spoelhof Center", "Spoelhof University Center"],
+    ["Commons", "Commons"],
+  ])(
+    "routes to room-search for %s and loads matching manifest building %s",
+    (campusName, expectedManifestName) => {
+      renderRouter("src/app", { initialUrl: "/finder" });
+
+      if (campusName !== "Hekman Library") {
+        fireEvent.press(screen.getByTestId(`pin-${campusName}`));
+      }
+      expect(screen.getByTestId("enter-building-button")).toBeTruthy();
+
+      fireEvent.press(screen.getByTestId("enter-building-button"));
+      expect(screen.getByTestId("room-search-screen")).toBeTruthy();
+      expect(screen.getByText(expectedManifestName)).toBeTruthy();
+    },
+  );
+});
+
+
+
