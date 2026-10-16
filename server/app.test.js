@@ -52,6 +52,52 @@ describe('GET /api/v1/points-of-interest', () => {
   });
 });
 
+describe('GET /api/v1/search', () => {
+  it('finds a room by its number', async () => {
+    const res = await request(app).get('/api/v1/search?q=sb 101');
+    expect(res.status).toBe(200);
+    expect(res.body).toContainEqual({ kind: 'room', buildingId: 1, floor: 1, name: 'SB 101' });
+  });
+
+  it('finds a building by partial name', async () => {
+    const res = await request(app).get('/api/v1/search?q=hekman');
+    expect(res.status).toBe(200);
+    expect(res.body).toContainEqual({ kind: 'building', id: 2, name: 'Hekman Library' });
+  });
+
+  it('finds a point of interest by type or label', async () => {
+    const res = await request(app).get('/api/v1/search?q=printer');
+    expect(res.status).toBe(200);
+    expect(res.body).toContainEqual({ kind: 'poi', id: 2, name: 'Printer' });
+  });
+
+  it('matches case-insensitively', async () => {
+    const lower = await request(app).get('/api/v1/search?q=hekman library');
+    const upper = await request(app).get('/api/v1/search?q=HEKMAN LIBRARY');
+    expect(upper.status).toBe(200);
+    expect(upper.body).toEqual(lower.body);
+    expect(upper.body).toContainEqual({ kind: 'building', id: 2, name: 'Hekman Library' });
+  });
+
+  it('returns 400 when q is missing', async () => {
+    const res = await request(app).get('/api/v1/search');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Query parameter q is required' });
+  });
+
+  it('returns 400 when q is only whitespace', async () => {
+    const res = await request(app).get('/api/v1/search?q=%20%20%20');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Query parameter q is required' });
+  });
+
+  it('returns an empty list when nothing matches', async () => {
+    const res = await request(app).get('/api/v1/search?q=zzz');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
 
 describe('unknown routes', () => {
   it('returns a 404', async () => {
