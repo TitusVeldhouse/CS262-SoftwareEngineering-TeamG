@@ -28,6 +28,52 @@ app.get('/api/v1/points-of-interest', (req, res) => {
   res.json(type?pointsOfInterest.filter(p => p.type === type) : pointsOfInterest);
 });
 
+/**
+ * GET /api/v1/search?q=<text>
+ *
+ * Searches buildings, rooms, and points of interest for a case-insensitive
+ * substring match.
+ *
+ * Query parameters:
+ *   q (string, required): the search text. Leading and trailing whitespace is trimmed.
+ *
+ * Responses:
+ *   200: an array of results, empty if nothing matches. Each result is one of:
+ *     { kind: 'building', id: number, name: string }
+ *       matched on the building name.
+ *     { kind: 'room', buildingId: number, floor: number, name: string }
+ *       matched on the room number (e.g. 'SB 101'); floor is the level number.
+ *     { kind: 'poi', id: number, name: string }
+ *       matched on the POI label or type; name is the label.
+ *   400: { error: 'Query parameter q is required' } when q is missing or blank.
+ */
+app.get('/api/v1/search', (req, res) => {
+  const { q } = req.query;
+  if (typeof q !== 'string' || q.trim() === '') {
+    return res.status(400).json({ error: 'Query parameter q is required' });
+  }
+  const term = q.trim().toLowerCase();
+  const matches = (text) => text.toLowerCase().includes(term);
+
+  const buildingResults = buildings
+    .filter((b) => matches(b.name))
+    .map((b) => ({ kind: 'building', id: b.id, name: b.name }));
+
+  const roomResults = buildings.flatMap((b) =>
+    b.floors.flatMap((f) =>
+      f.rooms
+        .filter(matches)
+        .map((room) => ({ kind: 'room', buildingId: b.id, floor: f.level, name: room }))
+    )
+  );
+
+  const poiResults = pointsOfInterest
+    .filter((p) => matches(p.label) || matches(p.type))
+    .map((p) => ({ kind: 'poi', id: p.id, name: p.label }));
+
+  res.json([...buildingResults, ...roomResults, ...poiResults]);
+});
+
 
 // JSON error responses
 app.use((req, res) => {
