@@ -120,6 +120,19 @@ describe("Finder screen - Campus Map Rendering & Blueprint", () => {
     expect(mapImage).toBeTruthy();
   });
 
+  it("recalibrates viewport centering on map-container layout", () => {
+    renderRouter("src/app", { initialUrl: "/finder" });
+
+    const container = screen.getByTestId("map-container");
+    expect(container).toBeTruthy();
+
+    fireEvent(container, "layout", {
+      nativeEvent: { layout: { width: 500, height: 700 } },
+    });
+
+    expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
+  });
+
   it("renders an interactive pin for every single campus location in LOCATIONS", () => {
     renderRouter("src/app", { initialUrl: "/finder" });
 

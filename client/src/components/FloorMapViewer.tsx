@@ -14,7 +14,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, G, Polygon, Polyline } from "react-native-svg";
-import { calculateMapFrame, clampMapScale } from "./map-geometry";
+import {
+  calculateMapFrame,
+  clampMapScale,
+  DEFAULT_PAN_MARGIN,
+} from "./map-geometry";
 
 // Overlay points use source-PNG pixels so they stay aligned at every zoom level.
 type MapPoint = readonly [number, number];
@@ -77,14 +81,34 @@ export default function FloorMapViewer({
   const panStartX = useSharedValue(0);
   const panStartY = useSharedValue(0);
 
+  const sharedMapWidth = useSharedValue(0);
+  const sharedMapHeight = useSharedValue(0);
+  const sharedViewportW = useSharedValue(0);
+  const sharedViewportH = useSharedValue(0);
+
+  useEffect(() => {
+    sharedMapWidth.set(mapWidth);
+    sharedMapHeight.set(mapHeight);
+    sharedViewportW.set(viewport.width);
+    sharedViewportH.set(viewport.height);
+  }, [mapWidth, mapHeight, viewport.width, viewport.height]);
+
   const pinch = Gesture.Pinch()
     .onBegin(() => {
       pinchStartScale.set(scale.get());
     })
     .onUpdate((event) => {
-      const nextScale = pinchStartScale.get() * event.scale;
-      // Keep the clamp inline because pinch updates run as UI worklets.
-      scale.set(Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale)));
+      const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale.get() * event.scale));
+      scale.set(nextScale);
+      // Re-clamp translation when scale changes so content is never lost
+      const scaledW = sharedMapWidth.get() * nextScale;
+      const scaledH = sharedMapHeight.get() * nextScale;
+      const extraX = Math.max(0, scaledW - sharedViewportW.get());
+      const extraY = Math.max(0, scaledH - sharedViewportH.get());
+      const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
+      const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
+      translateX.set(Math.min(maxTx, Math.max(-maxTx, translateX.get())));
+      translateY.set(Math.min(maxTy, Math.max(-maxTy, translateY.get())));
     });
 
   // Leave two-finger input exclusively to the pinch recognizer.
@@ -94,8 +118,17 @@ export default function FloorMapViewer({
       panStartY.set(translateY.get());
     })
     .onUpdate((event) => {
-      translateX.set(panStartX.get() + event.translationX);
-      translateY.set(panStartY.get() + event.translationY);
+      const currentScale = scale.get();
+      const scaledW = sharedMapWidth.get() * currentScale;
+      const scaledH = sharedMapHeight.get() * currentScale;
+      const extraX = Math.max(0, scaledW - sharedViewportW.get());
+      const extraY = Math.max(0, scaledH - sharedViewportH.get());
+      const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
+      const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
+      const rawX = panStartX.get() + event.translationX;
+      const rawY = panStartY.get() + event.translationY;
+      translateX.set(Math.min(maxTx, Math.max(-maxTx, rawX)));
+      translateY.set(Math.min(maxTy, Math.max(-maxTy, rawY)));
     });
 
   // One transform keeps the raster and its SVG highlights/routes in sync.
@@ -108,23 +141,40 @@ export default function FloorMapViewer({
     ],
   }));
 
+  const recalibrateMap = (animated = false) => {
+    if (animated) {
+      scale.set(withTiming(1, { duration: 160 }));
+      translateX.set(withTiming(0, { duration: 160 }));
+      translateY.set(withTiming(0, { duration: 160 }));
+    } else {
+      scale.set(1);
+      translateX.set(0);
+      translateY.set(0);
+    }
+  };
+
   useEffect(() => {
-    scale.set(1);
-    translateX.set(0);
-    translateY.set(0);
-  }, [asset, scale, translateX, translateY]);
+    recalibrateMap(false);
+  }, [asset]);
 
   const isLoading =
     !failed && (!loaded || viewport.width === 0 || viewport.height === 0);
 
   const zoomBy = (factor: number) => {
-    scale.set(withTiming(clampMapScale(scale.get() * factor), { duration: 140 }));
+    const nextScale = clampMapScale(scale.get() * factor);
+    scale.set(withTiming(nextScale, { duration: 140 }));
+    const scaledW = mapWidth * nextScale;
+    const scaledH = mapHeight * nextScale;
+    const extraX = Math.max(0, scaledW - viewport.width);
+    const extraY = Math.max(0, scaledH - viewport.height);
+    const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
+    const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
+    translateX.set(withTiming(Math.min(maxTx, Math.max(-maxTx, translateX.get())), { duration: 140 }));
+    translateY.set(withTiming(Math.min(maxTy, Math.max(-maxTy, translateY.get())), { duration: 140 }));
   };
 
   const fitMap = () => {
-    scale.set(withTiming(1, { duration: 140 }));
-    translateX.set(withTiming(0, { duration: 140 }));
-    translateY.set(withTiming(0, { duration: 140 }));
+    recalibrateMap(true);
   };
 
   return (
@@ -140,11 +190,20 @@ export default function FloorMapViewer({
         }
         // @ts-ignore - onWheel is supported on web for trackpad and mouse wheel scrolling
         onWheel={(e: any) => {
+          const currentScale = scale.get();
+          const scaledW = mapWidth * currentScale;
+          const scaledH = mapHeight * currentScale;
+          const extraX = Math.max(0, scaledW - viewport.width);
+          const extraY = Math.max(0, scaledH - viewport.height);
+          const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
+          const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
           if (e?.nativeEvent?.deltaY) {
-            translateY.set(translateY.get() - e.nativeEvent.deltaY);
+            const nextY = translateY.get() - e.nativeEvent.deltaY;
+            translateY.set(Math.min(maxTy, Math.max(-maxTy, nextY)));
           }
           if (e?.nativeEvent?.deltaX) {
-            translateX.set(translateX.get() - e.nativeEvent.deltaX);
+            const nextX = translateX.get() - e.nativeEvent.deltaX;
+            translateX.set(Math.min(maxTx, Math.max(-maxTx, nextX)));
           }
         }}
       >
@@ -155,20 +214,25 @@ export default function FloorMapViewer({
         ) : (
           <>
             <GestureDetector gesture={mapGesture}>
-              <Animated.View
-                style={[
-                  styles.mapSurface,
-                  {
-                    width: mapWidth,
-                    height: mapHeight,
-                    left: mapFrame.left,
-                    top: mapFrame.top,
-                  },
-                  mapTransform,
-                ]}
-                accessibilityLabel={title}
-                testID="map-surface"
+              <View
+                style={styles.gestureSurface}
+                collapsable={false}
+                testID="map-gesture-surface"
               >
+                <Animated.View
+                  style={[
+                    styles.mapSurface,
+                    {
+                      width: mapWidth,
+                      height: mapHeight,
+                      left: mapFrame.left,
+                      top: mapFrame.top,
+                    },
+                    mapTransform,
+                  ]}
+                  accessibilityLabel={title}
+                  testID="map-surface"
+                >
                 <Image
                   source={asset}
                   resizeMode="stretch"
@@ -216,7 +280,8 @@ export default function FloorMapViewer({
                     })}
                 </Svg>
               </Animated.View>
-            </GestureDetector>
+            </View>
+          </GestureDetector>
 
             {isLoading && (
               <View style={[styles.loading, { pointerEvents: "none" }]}>
@@ -270,6 +335,10 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
+  },
+  gestureSurface: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
   },
   mapSurface: {
     position: "absolute",
