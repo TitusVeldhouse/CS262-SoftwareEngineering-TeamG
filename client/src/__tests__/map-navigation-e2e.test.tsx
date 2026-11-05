@@ -25,6 +25,8 @@ jest.mock("react-native-reanimated", () => {
 });
 
 jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const { View } = require("react-native");
   const chainable = () => ({
     onBegin: () => chainable(),
     onUpdate: () => chainable(),
@@ -32,6 +34,8 @@ jest.mock("react-native-gesture-handler", () => {
   });
   return {
     GestureDetector: ({ children }: any) => children,
+    GestureHandlerRootView: ({ children, ...props }: any) =>
+      React.createElement(View, props, children),
     Gesture: {
       Pinch: () => chainable(),
       Pan: () => chainable(),

@@ -230,7 +230,6 @@ export default function FloorMapViewer({
                     },
                     mapTransform,
                   ]}
-                  accessibilityLabel={title}
                   testID="map-surface"
                 >
                 <Image
@@ -240,6 +239,7 @@ export default function FloorMapViewer({
                   onLoad={() => setLoaded(true)}
                   onError={() => setFailed(true)}
                   accessibilityLabel={title}
+                  testID="floor-plan-image"
                 />
                 <Svg
                   width={mapWidth}
