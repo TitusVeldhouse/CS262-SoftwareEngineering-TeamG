@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -16,7 +17,9 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, G, Polygon, Polyline } from "react-native-svg";
 import {
   calculateMapFrame,
+  calculatePanLimitsFromDimensions,
   clampMapScale,
+  clampPanOffset,
   DEFAULT_PAN_MARGIN,
 } from "./map-geometry";
 
@@ -64,6 +67,8 @@ export default function FloorMapViewer({
   const [viewport, setViewport] = useState<Size>({ width: 0, height: 0 });
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const isFirstLayout = useRef(true);
 
   const mapFrame = calculateMapFrame(
     imageWidth,
@@ -100,15 +105,16 @@ export default function FloorMapViewer({
     .onUpdate((event) => {
       const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale.get() * event.scale));
       scale.set(nextScale);
-      // Re-clamp translation when scale changes so content is never lost
-      const scaledW = sharedMapWidth.get() * nextScale;
-      const scaledH = sharedMapHeight.get() * nextScale;
-      const extraX = Math.max(0, scaledW - sharedViewportW.get());
-      const extraY = Math.max(0, scaledH - sharedViewportH.get());
-      const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
-      const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
-      translateX.set(Math.min(maxTx, Math.max(-maxTx, translateX.get())));
-      translateY.set(Math.min(maxTy, Math.max(-maxTy, translateY.get())));
+      const limits = calculatePanLimitsFromDimensions(
+        sharedMapWidth.get(),
+        sharedMapHeight.get(),
+        nextScale,
+        sharedViewportW.get(),
+        sharedViewportH.get(),
+        DEFAULT_PAN_MARGIN,
+      );
+      translateX.set(clampPanOffset(translateX.get(), limits.minX, limits.maxX));
+      translateY.set(clampPanOffset(translateY.get(), limits.minY, limits.maxY));
     });
 
   // Leave two-finger input exclusively to the pinch recognizer.
@@ -116,19 +122,25 @@ export default function FloorMapViewer({
     .onBegin(() => {
       panStartX.set(translateX.get());
       panStartY.set(translateY.get());
+      runOnJS(setIsPanning)(true);
     })
     .onUpdate((event) => {
       const currentScale = scale.get();
-      const scaledW = sharedMapWidth.get() * currentScale;
-      const scaledH = sharedMapHeight.get() * currentScale;
-      const extraX = Math.max(0, scaledW - sharedViewportW.get());
-      const extraY = Math.max(0, scaledH - sharedViewportH.get());
-      const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
-      const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
+      const limits = calculatePanLimitsFromDimensions(
+        sharedMapWidth.get(),
+        sharedMapHeight.get(),
+        currentScale,
+        sharedViewportW.get(),
+        sharedViewportH.get(),
+        DEFAULT_PAN_MARGIN,
+      );
       const rawX = panStartX.get() + event.translationX;
       const rawY = panStartY.get() + event.translationY;
-      translateX.set(Math.min(maxTx, Math.max(-maxTx, rawX)));
-      translateY.set(Math.min(maxTy, Math.max(-maxTy, rawY)));
+      translateX.set(clampPanOffset(rawX, limits.minX, limits.maxX));
+      translateY.set(clampPanOffset(rawY, limits.minY, limits.maxY));
+    })
+    .onFinalize(() => {
+      runOnJS(setIsPanning)(false);
     });
 
   // One transform keeps the raster and its SVG highlights/routes in sync.
@@ -157,20 +169,39 @@ export default function FloorMapViewer({
     recalibrateMap(false);
   }, [asset]);
 
+  useEffect(() => {
+    if (viewport.width > 0 && viewport.height > 0 && isFirstLayout.current) {
+      isFirstLayout.current = false;
+      recalibrateMap(false);
+    }
+  }, [viewport.width, viewport.height]);
+
   const isLoading =
     !failed && (!loaded || viewport.width === 0 || viewport.height === 0);
 
   const zoomBy = (factor: number) => {
     const nextScale = clampMapScale(scale.get() * factor);
     scale.set(withTiming(nextScale, { duration: 140 }));
-    const scaledW = mapWidth * nextScale;
-    const scaledH = mapHeight * nextScale;
-    const extraX = Math.max(0, scaledW - viewport.width);
-    const extraY = Math.max(0, scaledH - viewport.height);
-    const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
-    const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
-    translateX.set(withTiming(Math.min(maxTx, Math.max(-maxTx, translateX.get())), { duration: 140 }));
-    translateY.set(withTiming(Math.min(maxTy, Math.max(-maxTy, translateY.get())), { duration: 140 }));
+    const limits = calculatePanLimitsFromDimensions(
+      mapWidth,
+      mapHeight,
+      nextScale,
+      viewport.width,
+      viewport.height,
+      DEFAULT_PAN_MARGIN,
+    );
+    translateX.set(
+      withTiming(
+        clampPanOffset(translateX.get(), limits.minX, limits.maxX),
+        { duration: 140 },
+      ),
+    );
+    translateY.set(
+      withTiming(
+        clampPanOffset(translateY.get(), limits.minY, limits.maxY),
+        { duration: 140 },
+      ),
+    );
   };
 
   const fitMap = () => {
@@ -182,28 +213,30 @@ export default function FloorMapViewer({
       <View
         style={styles.mapStage}
         testID="map-stage"
-        onLayout={({ nativeEvent }) =>
-          setViewport({
-            width: nativeEvent.layout.width,
-            height: nativeEvent.layout.height,
-          })
-        }
+        onLayout={({ nativeEvent }) => {
+          const { width, height } = nativeEvent.layout;
+          if (width > 0 && height > 0) {
+            setViewport({ width, height });
+          }
+        }}
         // @ts-ignore - onWheel is supported on web for trackpad and mouse wheel scrolling
         onWheel={(e: any) => {
           const currentScale = scale.get();
-          const scaledW = mapWidth * currentScale;
-          const scaledH = mapHeight * currentScale;
-          const extraX = Math.max(0, scaledW - viewport.width);
-          const extraY = Math.max(0, scaledH - viewport.height);
-          const maxTx = extraX / 2 + DEFAULT_PAN_MARGIN;
-          const maxTy = extraY / 2 + DEFAULT_PAN_MARGIN;
+          const limits = calculatePanLimitsFromDimensions(
+            mapWidth,
+            mapHeight,
+            currentScale,
+            viewport.width,
+            viewport.height,
+            DEFAULT_PAN_MARGIN,
+          );
           if (e?.nativeEvent?.deltaY) {
             const nextY = translateY.get() - e.nativeEvent.deltaY;
-            translateY.set(Math.min(maxTy, Math.max(-maxTy, nextY)));
+            translateY.set(clampPanOffset(nextY, limits.minY, limits.maxY));
           }
           if (e?.nativeEvent?.deltaX) {
             const nextX = translateX.get() - e.nativeEvent.deltaX;
-            translateX.set(Math.min(maxTx, Math.max(-maxTx, nextX)));
+            translateX.set(clampPanOffset(nextX, limits.minX, limits.maxX));
           }
         }}
       >
@@ -215,7 +248,11 @@ export default function FloorMapViewer({
           <>
             <GestureDetector gesture={mapGesture}>
               <View
-                style={styles.gestureSurface}
+                style={[
+                  styles.gestureSurface,
+                  // @ts-ignore - cursor affordance for desktop mouse click-and-drag
+                  { cursor: isPanning ? "grabbing" : "grab" },
+                ]}
                 collapsable={false}
                 testID="map-gesture-surface"
               >
@@ -235,7 +272,13 @@ export default function FloorMapViewer({
                 <Image
                   source={asset}
                   resizeMode="stretch"
-                  style={StyleSheet.absoluteFill}
+                  style={[
+                    StyleSheet.absoluteFill,
+                    // @ts-ignore - prevent ghost image drag on web
+                    { userSelect: "none" },
+                  ]}
+                  // @ts-ignore
+                  draggable={false}
                   onLoad={() => setLoaded(true)}
                   onError={() => setFailed(true)}
                   accessibilityLabel={title}

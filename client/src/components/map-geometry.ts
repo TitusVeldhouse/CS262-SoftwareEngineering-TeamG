@@ -12,10 +12,10 @@ export type PanLimits = {
   maxY: number;
 };
 
-export const MAP_PADDING = 16;
+export const MAP_PADDING = 28;
 export const MIN_MAP_SCALE = 0.5;
 export const MAX_MAP_SCALE = 5;
-export const DEFAULT_PAN_MARGIN = 50;
+export const DEFAULT_PAN_MARGIN = 80;
 
 export function clampMapScale(scale: number) {
   "worklet";
@@ -27,6 +27,40 @@ export function clampPanOffset(value: number, min: number, max: number): number 
   return Math.min(max, Math.max(min, value));
 }
 
+export function calculatePanLimitsFromDimensions(
+  mapWidth: number,
+  mapHeight: number,
+  scale: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  margin: number = DEFAULT_PAN_MARGIN,
+): PanLimits {
+  "worklet";
+  const scaledW = mapWidth * scale;
+  const scaledH = mapHeight * scale;
+
+  if (scaledW === 0 || scaledH === 0 || viewportWidth === 0 || viewportHeight === 0) {
+    return {
+      minX: -margin,
+      maxX: margin,
+      minY: -margin,
+      maxY: margin,
+    };
+  }
+
+  // Generous pan boundaries: allow any corner or section of the map to be dragged into view,
+  // while ensuring at least `margin` of the map remains visible on-screen.
+  const maxTx = Math.max(margin, (scaledW + viewportWidth) / 2 - margin);
+  const maxTy = Math.max(margin, (scaledH + viewportHeight) / 2 - margin);
+
+  return {
+    minX: -maxTx,
+    maxX: maxTx,
+    minY: -maxTy,
+    maxY: maxTy,
+  };
+}
+
 export function calculatePanLimits(
   frame: MapFrame,
   scale: number,
@@ -35,21 +69,14 @@ export function calculatePanLimits(
   margin: number = DEFAULT_PAN_MARGIN,
 ): PanLimits {
   "worklet";
-  const scaledW = frame.width * scale;
-  const scaledH = frame.height * scale;
-
-  const extraX = Math.max(0, scaledW - viewportWidth);
-  const extraY = Math.max(0, scaledH - viewportHeight);
-
-  const maxTx = extraX / 2 + margin;
-  const maxTy = extraY / 2 + margin;
-
-  return {
-    minX: -maxTx,
-    maxX: maxTx,
-    minY: -maxTy,
-    maxY: maxTy,
-  };
+  return calculatePanLimitsFromDimensions(
+    frame.width,
+    frame.height,
+    scale,
+    viewportWidth,
+    viewportHeight,
+    margin,
+  );
 }
 
 export function calculateMapFrame(

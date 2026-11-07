@@ -1,46 +1,14 @@
 import { renderRouter, screen, fireEvent, within } from "expo-router/testing-library";
 import { findFirstSharedMap } from "../data/campus-layout";
 
-// Mock Reanimated & Gesture Handler for the real router tree
-jest.mock("react-native-reanimated", () => {
-  const React = require("react");
-  const { View } = require("react-native");
-  return {
-    __esModule: true,
-    default: {
-      View,
-    },
-    useSharedValue: (init: any) => {
-      let val = init;
-      return {
-        get: () => val,
-        set: (v: any) => {
-          val = v;
-        },
-      };
-    },
-    useAnimatedStyle: (fn: any) => fn(),
-    withTiming: (toValue: any) => toValue,
-  };
-});
-
-jest.mock("react-native-gesture-handler", () => {
-  const React = require("react");
-  const { View } = require("react-native");
-  const chainable = () => ({
-    onBegin: () => chainable(),
-    onUpdate: () => chainable(),
-    maxPointers: () => chainable(),
-  });
-  return {
-    GestureDetector: ({ children }: any) => children,
-    GestureHandlerRootView: ({ children, ...props }: any) =>
-      React.createElement(View, props, children),
-    Gesture: {
-      Pinch: () => chainable(),
-      Pan: () => chainable(),
-      Simultaneous: () => chainable(),
-    },
+// Mock FloorMapViewer to isolate screen navigation transitions from native CAD reanimated canvas
+jest.mock("../components/FloorMapViewer", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const { View: mockView } = jest.requireActual<typeof import("react-native")>(
+    "react-native",
+  );
+  return function MockPlanViewer() {
+    return mockReact.createElement(mockView, { testID: "plan-viewer" });
   };
 });
 
@@ -56,14 +24,12 @@ describe("End-to-End Campus & Indoor Map Navigation", () => {
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
 
-    // 3. User adjusts map controls (zoom in, zoom out, and recalibrates with Quad)
+    // 3. User adjusts map controls (zoom in and zoom out)
     const zoomIn = screen.getByTestId("zoom-in");
     const zoomOut = screen.getByTestId("zoom-out");
-    const quadBtn = screen.getByTestId("center-map-button");
 
     fireEvent.press(zoomIn);
     fireEvent.press(zoomOut);
-    fireEvent.press(quadBtn);
 
     // 4. User selects Hiemenga Hall pin on campus map
     fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
@@ -85,9 +51,10 @@ describe("End-to-End Campus & Indoor Map Navigation", () => {
     expect(exitBtn).toBeTruthy();
     fireEvent.press(exitBtn);
 
-    // 8. User lands on Finder with Hiemenga Hall focused and centered
+    // 8. User lands on Finder with Hiemenga Hall focused and can recenter on Quad
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getAllByText("Hiemenga Hall").length).toBeGreaterThan(0);
+    fireEvent.press(screen.getByTestId("center-map-button"));
 
     // 9. User navigates back out through history
     fireEvent.press(screen.getByTestId("back-button"));

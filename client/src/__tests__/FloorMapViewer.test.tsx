@@ -20,6 +20,7 @@ jest.mock("react-native-reanimated", () => {
     },
     useAnimatedStyle: (fn: any) => fn(),
     withTiming: (toValue: any) => toValue,
+    runOnJS: (fn: any) => fn,
   };
 });
 
@@ -29,6 +30,7 @@ jest.mock("react-native-gesture-handler", () => {
   const chainable = () => ({
     onBegin: () => chainable(),
     onUpdate: () => chainable(),
+    onFinalize: () => chainable(),
     maxPointers: () => chainable(),
   });
   return {

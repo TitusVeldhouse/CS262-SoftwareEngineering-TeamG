@@ -14,13 +14,13 @@ describe("Map Geometry & Pan Boundary Clamping", () => {
     it("fits landscape image inside portrait viewport with padding", () => {
       const frame = calculateMapFrame(1600, 800, 400, 600);
 
-      // Available width is 400 - 32 = 368. Width scale = 368 / 1600 = 0.23.
-      // Available height is 600 - 32 = 568. Height scale = 568 / 800 = 0.71.
-      // Fit scale is min(0.23, 0.71) = 0.23.
-      expect(frame.width).toBeCloseTo(368);
-      expect(frame.height).toBeCloseTo(184);
-      expect(frame.left).toBeCloseTo((400 - 368) / 2);
-      expect(frame.top).toBeCloseTo((600 - 184) / 2);
+      // Available width is 400 - 56 = 344. Width scale = 344 / 1600 = 0.215.
+      // Available height is 600 - 56 = 544. Height scale = 544 / 800 = 0.68.
+      // Fit scale is min(0.215, 0.68) = 0.215.
+      expect(frame.width).toBeCloseTo(344);
+      expect(frame.height).toBeCloseTo(172);
+      expect(frame.left).toBeCloseTo((400 - 344) / 2);
+      expect(frame.top).toBeCloseTo((600 - 172) / 2);
     });
 
     it("handles zero or negative viewport safely", () => {
@@ -51,21 +51,21 @@ describe("Map Geometry & Pan Boundary Clamping", () => {
 
     it("correctly fits extremely tall portrait schematics", () => {
       const frame = calculateMapFrame(400, 2000, 500, 700);
-      // available height is 700 - 32 = 668. Height scale = 668 / 2000 = 0.334.
-      // Width scale = (500 - 32) / 400 = 1.17.
-      // Fit scale is 0.334.
-      expect(frame.height).toBeCloseTo(668);
-      expect(frame.width).toBeCloseTo(400 * (668 / 2000));
+      // available height is 700 - 56 = 644. Height scale = 644 / 2000 = 0.322.
+      // Width scale = (500 - 56) / 400 = 1.11.
+      // Fit scale is 0.322.
+      expect(frame.height).toBeCloseTo(644);
+      expect(frame.width).toBeCloseTo(400 * (644 / 2000));
       expect(frame.top).toBeCloseTo(MAP_PADDING);
     });
 
     it("correctly fits extremely wide panoramic schematics", () => {
       const frame = calculateMapFrame(3000, 500, 500, 700);
-      // available width is 500 - 32 = 468. Width scale = 468 / 3000 = 0.156.
-      // Height scale = (700 - 32) / 500 = 1.336.
-      // Fit scale is 0.156.
-      expect(frame.width).toBeCloseTo(468);
-      expect(frame.height).toBeCloseTo(500 * (468 / 3000));
+      // available width is 500 - 56 = 444. Width scale = 444 / 3000 = 0.148.
+      // Height scale = (700 - 56) / 500 = 1.288.
+      // Fit scale is 0.148.
+      expect(frame.width).toBeCloseTo(444);
+      expect(frame.height).toBeCloseTo(500 * (444 / 3000));
       expect(frame.left).toBeCloseTo(MAP_PADDING);
     });
   });
@@ -96,39 +96,40 @@ describe("Map Geometry & Pan Boundary Clamping", () => {
     const viewportW = 400;
     const viewportH = 600;
 
-    it("calculates tight bounds when image fits comfortably inside viewport (scale <= 1)", () => {
-      // At scale = 1, scaledW = 360 <= 400, scaledH = 240 <= 600
+    it("calculates generous bounds when image fits inside viewport (scale <= 1)", () => {
+      // At scale = 1, scaledW = 360, scaledH = 240. Margin = 50.
+      // maxTx = Math.max(50, (360 + 400) / 2 - 50) = 380 - 50 = 330
+      // maxTy = Math.max(50, (240 + 600) / 2 - 50) = 420 - 50 = 370
       const limits = calculatePanLimits(mockFrame, 1.0, viewportW, viewportH, 50);
 
-      // extraX = 0, extraY = 0 => maxTx = 50, maxTy = 50
-      expect(limits.minX).toBe(-50);
-      expect(limits.maxX).toBe(50);
-      expect(limits.minY).toBe(-50);
-      expect(limits.maxY).toBe(50);
+      expect(limits.minX).toBe(-330);
+      expect(limits.maxX).toBe(330);
+      expect(limits.minY).toBe(-370);
+      expect(limits.maxY).toBe(370);
     });
 
     it("expands pan boundaries proportionally when zoomed in (scale > 1)", () => {
-      // At scale = 2.0, scaledW = 720 (> 400), scaledH = 480 (<= 600)
+      // At scale = 2.0, scaledW = 720, scaledH = 480. Margin = 50.
+      // maxTx = Math.max(50, (720 + 400) / 2 - 50) = 560 - 50 = 510
+      // maxTy = Math.max(50, (480 + 600) / 2 - 50) = 540 - 50 = 490
       const limits = calculatePanLimits(mockFrame, 2.0, viewportW, viewportH, 50);
 
-      // extraX = 720 - 400 = 320 => maxTx = 160 + 50 = 210
-      // extraY = 0 => maxTy = 50
-      expect(limits.minX).toBe(-210);
-      expect(limits.maxX).toBe(210);
-      expect(limits.minY).toBe(-50);
-      expect(limits.maxY).toBe(50);
+      expect(limits.minX).toBe(-510);
+      expect(limits.maxX).toBe(510);
+      expect(limits.minY).toBe(-490);
+      expect(limits.maxY).toBe(490);
     });
 
     it("allows full multidirectional navigation when both dimensions exceed viewport", () => {
-      // At scale = 3.0, scaledW = 1080 (> 400), scaledH = 720 (> 600)
+      // At scale = 3.0, scaledW = 1080, scaledH = 720. Margin = 40.
+      // maxTx = Math.max(40, (1080 + 400) / 2 - 40) = 740 - 40 = 700
+      // maxTy = Math.max(40, (720 + 600) / 2 - 40) = 660 - 40 = 620
       const limits = calculatePanLimits(mockFrame, 3.0, viewportW, viewportH, 40);
 
-      // extraX = 1080 - 400 = 680 => maxTx = 340 + 40 = 380
-      // extraY = 720 - 600 = 120 => maxTy = 60 + 40 = 100
-      expect(limits.minX).toBe(-380);
-      expect(limits.maxX).toBe(380);
-      expect(limits.minY).toBe(-100);
-      expect(limits.maxY).toBe(100);
+      expect(limits.minX).toBe(-700);
+      expect(limits.maxX).toBe(700);
+      expect(limits.minY).toBe(-620);
+      expect(limits.maxY).toBe(620);
     });
 
     it("maintains symmetric pan bounds centered around origin", () => {
@@ -137,14 +138,12 @@ describe("Map Geometry & Pan Boundary Clamping", () => {
       expect(limits.minY).toBe(-limits.maxY);
     });
 
-    it("respects custom margins for edge padding", () => {
-      const tightMargin = calculatePanLimits(mockFrame, 1.0, viewportW, viewportH, 10);
-      expect(tightMargin.maxX).toBe(10);
-      expect(tightMargin.maxY).toBe(10);
-
-      const generousMargin = calculatePanLimits(mockFrame, 1.0, viewportW, viewportH, 100);
-      expect(generousMargin.maxX).toBe(100);
-      expect(generousMargin.maxY).toBe(100);
+    it("safely handles zero dimensions without crashing", () => {
+      const limits = calculatePanLimits(mockFrame, 1.0, 0, 0, 50);
+      expect(limits.minX).toBe(-50);
+      expect(limits.maxX).toBe(50);
+      expect(limits.minY).toBe(-50);
+      expect(limits.maxY).toBe(50);
     });
   });
 });
