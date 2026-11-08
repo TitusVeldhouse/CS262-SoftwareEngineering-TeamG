@@ -16,11 +16,11 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, G, Polygon, Polyline } from "react-native-svg";
 import {
+  calculateDynamicMinScale,
   calculateMapFrame,
   calculatePanLimitsFromDimensions,
   clampMapScale,
   clampPanOffset,
-  DEFAULT_PAN_MARGIN,
 } from "./map-geometry";
 
 // Overlay points use source-PNG pixels so they stay aligned at every zoom level.
@@ -78,6 +78,7 @@ export default function FloorMapViewer({
   );
   const mapWidth = mapFrame.width;
   const mapHeight = mapFrame.height;
+  const dynamicMinScale = calculateDynamicMinScale(imageWidth, imageHeight);
 
   const scale = useSharedValue(1);
   const pinchStartScale = useSharedValue(1);
@@ -103,7 +104,11 @@ export default function FloorMapViewer({
       pinchStartScale.set(scale.get());
     })
     .onUpdate((event) => {
-      const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale.get() * event.scale));
+      const nextScale = clampMapScale(
+        pinchStartScale.get() * event.scale,
+        dynamicMinScale,
+        MAX_SCALE,
+      );
       scale.set(nextScale);
       const limits = calculatePanLimitsFromDimensions(
         sharedMapWidth.get(),
@@ -111,7 +116,6 @@ export default function FloorMapViewer({
         nextScale,
         sharedViewportW.get(),
         sharedViewportH.get(),
-        DEFAULT_PAN_MARGIN,
       );
       translateX.set(clampPanOffset(translateX.get(), limits.minX, limits.maxX));
       translateY.set(clampPanOffset(translateY.get(), limits.minY, limits.maxY));
@@ -132,7 +136,6 @@ export default function FloorMapViewer({
         currentScale,
         sharedViewportW.get(),
         sharedViewportH.get(),
-        DEFAULT_PAN_MARGIN,
       );
       const rawX = panStartX.get() + event.translationX;
       const rawY = panStartY.get() + event.translationY;
@@ -167,7 +170,7 @@ export default function FloorMapViewer({
 
   useEffect(() => {
     recalibrateMap(false);
-  }, [asset]);
+  }, [asset, imageWidth, imageHeight]);
 
   useEffect(() => {
     if (viewport.width > 0 && viewport.height > 0 && isFirstLayout.current) {
@@ -180,7 +183,7 @@ export default function FloorMapViewer({
     !failed && (!loaded || viewport.width === 0 || viewport.height === 0);
 
   const zoomBy = (factor: number) => {
-    const nextScale = clampMapScale(scale.get() * factor);
+    const nextScale = clampMapScale(scale.get() * factor, dynamicMinScale, MAX_SCALE);
     scale.set(withTiming(nextScale, { duration: 140 }));
     const limits = calculatePanLimitsFromDimensions(
       mapWidth,
@@ -188,7 +191,6 @@ export default function FloorMapViewer({
       nextScale,
       viewport.width,
       viewport.height,
-      DEFAULT_PAN_MARGIN,
     );
     translateX.set(
       withTiming(
@@ -228,7 +230,6 @@ export default function FloorMapViewer({
             currentScale,
             viewport.width,
             viewport.height,
-            DEFAULT_PAN_MARGIN,
           );
           if (e?.nativeEvent?.deltaY) {
             const nextY = translateY.get() - e.nativeEvent.deltaY;
