@@ -2,7 +2,15 @@
 // pick a campus location from a dropdown (highlighting it on a mock map) and
 // filter which points of interest are shown, all backed by hard-coded data.
 import { useState, useEffect, useRef } from "react";
-import { Text, View, Pressable, ScrollView, StyleSheet, Image } from "react-native";
+import {
+  Text,
+  View,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Image,
+  type ScrollViewInstance,
+} from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import {
   useFonts,
@@ -101,8 +109,8 @@ export default function Finder() {
   const currentWidth = Math.round(BASE_MAP_WIDTH * mapScale);
   const currentHeight = Math.round(BASE_MAP_HEIGHT * mapScale);
 
-  const horizontalScrollRef = useRef<ScrollView>(null);
-  const verticalScrollRef = useRef<ScrollView>(null);
+  const horizontalScrollRef = useRef<ScrollViewInstance | null>(null);
+  const verticalScrollRef = useRef<ScrollViewInstance | null>(null);
 
   // Smoothly center the scroll viewport on a specific campus location
   const centerOnLocation = (
@@ -128,6 +136,8 @@ export default function Finder() {
   useEffect(() => {
     const matched = resolveBuilding(params.building);
     if (matched) {
+      // Route parameters control this selection when navigating from a floor plan.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(matched);
       centerOnLocation(matched, true, mapScale);
     }
