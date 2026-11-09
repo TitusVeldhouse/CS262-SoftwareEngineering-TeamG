@@ -66,8 +66,8 @@ describe("Room search screen", () => {
     expect(clampMapScale(1)).toBe(1);
   });
 
-  it("lists academic buildings alphabetically before auxiliary buildings", () => {
-    renderRouter("src/app", { initialUrl: "/room-search" });
+  it("lists academic buildings alphabetically before auxiliary buildings", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search" });
 
     const buildingIds = screen
       .getAllByTestId(/^building-option-/)
@@ -83,11 +83,11 @@ describe("Room search screen", () => {
     ]);
   });
 
-  it("searches buildings and displays the selected floor plan", () => {
-    renderRouter("src/app", { initialUrl: "/room-search" });
+  it("searches buildings and displays the selected floor plan", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search" });
 
-    fireEvent.changeText(screen.getByTestId("building-search-input"), "Science");
-    fireEvent.press(screen.getByTestId("building-option-Science Building"));
+    await fireEvent.changeText(screen.getByTestId("building-search-input"), "Science");
+    await fireEvent.press(screen.getByTestId("building-option-Science Building"));
 
     expect(screen.getByTestId("plan-viewer")).toBeTruthy();
     expect(screen.getByText("Science Building")).toBeTruthy();
@@ -104,14 +104,14 @@ describe("Room search screen", () => {
     const nextFloorOption = screen.getByTestId(
       `floor-option-${nextFloor.label}`,
     );
-    fireEvent.press(nextFloorOption);
+    await fireEvent.press(nextFloorOption);
     expect(nextFloorOption.props.accessibilityState.selected).toBe(true);
   });
 
-  it("shows an empty state for unmatched building names", () => {
-    renderRouter("src/app", { initialUrl: "/room-search" });
+  it("shows an empty state for unmatched building names", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search" });
 
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("building-search-input"),
       "Not a campus building",
     );
@@ -119,22 +119,22 @@ describe("Room search screen", () => {
     expect(screen.getByTestId("no-building-results")).toBeTruthy();
   });
 
-  it("automatically selects a building and renders its floor plan when opened with building param", () => {
-    renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
+  it("automatically selects a building and renders its floor plan when opened with building param", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
 
     expect(screen.getByTestId("plan-viewer")).toBeTruthy();
     expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
     expect(screen.getByTestId("floor-option-Level 2")).toBeTruthy();
   });
 
-  it("renders a green Exit to Campus Map button and navigates to the campus map on press", () => {
-    renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
+  it("renders a green Exit to Campus Map button and navigates to the campus map on press", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
 
     const exitBtn = screen.getByTestId("exit-to-campus-button");
     expect(exitBtn).toBeTruthy();
     expect(screen.getByText(/Exit to Campus Map/i)).toBeTruthy();
 
-    fireEvent.press(exitBtn);
+    await fireEvent.press(exitBtn);
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
   });
 
@@ -144,23 +144,23 @@ describe("Room search screen", () => {
     "Hekman Library",
   ])(
     "exits to campus map with matching building for %s",
-    (buildingName) => {
-      renderRouter("src/app", {
+    async (buildingName) => {
+      await renderRouter("src/app", {
         initialUrl: `/room-search?building=${encodeURIComponent(buildingName)}`,
       });
 
       const exitBtn = screen.getByTestId("exit-to-campus-button");
-      fireEvent.press(exitBtn);
+      await fireEvent.press(exitBtn);
 
       expect(screen.getByTestId("finder-screen")).toBeTruthy();
       expect(screen.getByTestId("result-card")).toBeTruthy();
     },
   );
 
-  it("safely navigates back to landing screen on back button press", () => {
-    renderRouter("src/app", { initialUrl: "/room-search" });
+  it("safely navigates back to landing screen on back button press", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search" });
 
-    fireEvent.press(screen.getByTestId("room-search-back-button"));
+    await fireEvent.press(screen.getByTestId("room-search-back-button"));
     expect(screen.getByTestId("landing-screen")).toBeTruthy();
   });
 });
