@@ -11,6 +11,7 @@ import {
   Inter_700Bold,
   Inter_800ExtraBold,
 } from "@expo-google-fonts/inter";
+import { FavoritesToggleButton } from "../components/FavoritesDrawer";
 
 // Shared color palette for this screen.
 const ACCENT = "#208AEF";
@@ -69,7 +70,10 @@ export default function Landing() {
 
       {/* Hero: app name, headline, and short pitch. */}
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>CALVIN FINDER</Text>
+        <View style={styles.eyebrowRow}>
+          <Text style={styles.eyebrow}>CALVIN FINDER</Text>
+          <FavoritesToggleButton />
+        </View>
         <Text style={styles.title} testID="landing-title">
           Never get lost on campus again.
         </Text>
@@ -143,6 +147,11 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: 12,
+  },
+  eyebrowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   eyebrow: {
     fontFamily: "Inter_700Bold",
