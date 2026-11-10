@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -99,6 +99,8 @@ export default function RoomSearch() {
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const initial = resolveBuildingAndFloor(params.building, params.floor);
+  const routeParamKey = `${params.building ?? ""}|${params.floor ?? ""}|${params.roomId ?? ""}`;
+  const [prevRouteParamKey, setPrevRouteParamKey] = useState(routeParamKey);
 
   const [query, setQuery] = useState(
     initial.building ? initial.building.name : "",
@@ -119,17 +121,19 @@ export default function RoomSearch() {
     Inter_700Bold,
   });
 
-  useEffect(() => {
-    if (!params.building) return;
-    const resolved = resolveBuildingAndFloor(params.building, params.floor);
-    if (resolved.building) {
-      setSelectedBuilding(resolved.building);
-      setSelectedFloor(resolved.floor);
-      setSelectedRoomId(params.roomId ?? null);
-      setQuery(resolved.building.name);
-      setShowResults(false);
+  if (routeParamKey !== prevRouteParamKey) {
+    setPrevRouteParamKey(routeParamKey);
+    if (params.building) {
+      const resolved = resolveBuildingAndFloor(params.building, params.floor);
+      if (resolved.building) {
+        setSelectedBuilding(resolved.building);
+        setSelectedFloor(resolved.floor);
+        setSelectedRoomId(params.roomId ?? null);
+        setQuery(resolved.building.name);
+        setShowResults(false);
+      }
     }
-  }, [params.building, params.floor, params.roomId]);
+  }
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const matchingBuildings = BUILDINGS.filter((building) =>
@@ -142,25 +146,24 @@ export default function RoomSearch() {
     .filter((building) => !ACADEMIC_BUILDINGS.has(building.name))
     .sort(byName);
 
-  const matchingRooms = useMemo(() => {
-    if (!normalizedQuery) return [];
-    const availableBuildings = new Set(BUILDINGS.map((b) => b.name));
-    return getAllRooms()
-      .filter((room) => {
-        if (!availableBuildings.has(room.building)) return false;
-        return (
-          room.id.toLowerCase().includes(normalizedQuery) ||
-          room.roomNumber.toLowerCase().includes(normalizedQuery) ||
-          (room.name?.toLowerCase().includes(normalizedQuery) ?? false) ||
-          room.building.toLowerCase().includes(normalizedQuery) ||
-          (room.aliases?.some((a) =>
-            a.toLowerCase().includes(normalizedQuery),
-          ) ??
-            false)
-        );
-      })
-      .slice(0, 8);
-  }, [normalizedQuery]);
+  const availableBuildings = new Set(BUILDINGS.map((b) => b.name));
+  const matchingRooms = normalizedQuery
+    ? getAllRooms()
+        .filter((room) => {
+          if (!availableBuildings.has(room.building)) return false;
+          return (
+            room.id.toLowerCase().includes(normalizedQuery) ||
+            room.roomNumber.toLowerCase().includes(normalizedQuery) ||
+            (room.name?.toLowerCase().includes(normalizedQuery) ?? false) ||
+            room.building.toLowerCase().includes(normalizedQuery) ||
+            (room.aliases?.some((a) =>
+              a.toLowerCase().includes(normalizedQuery),
+            ) ??
+              false)
+          );
+        })
+        .slice(0, 8)
+    : [];
 
   const selectBuilding = (building: CampusBuilding) => {
     setSelectedBuilding(building);

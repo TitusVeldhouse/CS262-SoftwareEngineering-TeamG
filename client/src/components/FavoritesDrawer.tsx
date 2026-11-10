@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -51,7 +51,7 @@ const KIND_BADGE_COLORS: Record<
   building: { bg: "#FEF3C7", text: "#B45309" },
 };
 
-const FILTER_OPTIONS: ReadonlyArray<{ key: DrawerFilter; label: string }> = [
+const FILTER_OPTIONS: readonly { key: DrawerFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "room", label: "Rooms" },
   { key: "poi", label: "POIs" },
@@ -148,7 +148,7 @@ export default function FavoritesDrawer() {
 
   const [filter, setFilter] = useState<DrawerFilter>("all");
   const [quickQuery, setQuickQuery] = useState("");
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [slideAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (isDrawerOpen) {

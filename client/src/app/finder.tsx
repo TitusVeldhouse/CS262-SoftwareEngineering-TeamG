@@ -118,25 +118,34 @@ export default function Finder() {
   const [activePois, setActivePois] = useState<Set<PointOfInterest>>(() =>
     initialPoi ? new Set([initialPoi]) : new Set(),
   );
+  const [prevParamBuilding, setPrevParamBuilding] = useState(params.building);
+  const [prevParamPoi, setPrevParamPoi] = useState(params.poi);
+
+  if (params.building !== prevParamBuilding) {
+    setPrevParamBuilding(params.building);
+    const matched = resolveBuilding(params.building);
+    if (matched) {
+      setSelected(matched);
+    }
+  }
+
+  if (params.poi !== prevParamPoi) {
+    setPrevParamPoi(params.poi);
+    const matchedPoi = resolvePoi(params.poi);
+    if (matchedPoi && !activePois.has(matchedPoi)) {
+      const next = new Set(activePois);
+      next.add(matchedPoi);
+      setActivePois(next);
+    }
+  }
 
   useEffect(() => {
     const matched = resolveBuilding(params.building);
     if (matched) {
-      setSelected(matched);
       centerOnLocation(matched, true, mapScale);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.building]);
-
-  useEffect(() => {
-    const matchedPoi = resolvePoi(params.poi);
-    if (matchedPoi) {
-      setActivePois((prev) => {
-        const next = new Set(prev);
-        next.add(matchedPoi);
-        return next;
-      });
-    }
-  }, [params.poi]);
 
   // Center on quad/initial building on mount
   useEffect(() => {
@@ -144,6 +153,7 @@ export default function Finder() {
       centerOnLocation(initialSelection, false, 1.0);
     }, 150);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Flips a single POI's checked state without mutating the previous Set.
