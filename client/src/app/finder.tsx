@@ -101,6 +101,11 @@ export default function Finder() {
   const currentWidth = Math.round(BASE_MAP_WIDTH * mapScale);
   const currentHeight = Math.round(BASE_MAP_HEIGHT * mapScale);
 
+  const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
   const horizontalScrollRef = useRef<ScrollView>(null);
   const verticalScrollRef = useRef<ScrollView>(null);
 
@@ -109,6 +114,8 @@ export default function Finder() {
     locName: LocationName,
     animated = true,
     scale = mapScale,
+    vpWidth = viewportSize.width,
+    vpHeight = viewportSize.height,
   ) => {
     const loc = LOCATIONS.find((l) => l.name === locName);
     if (!loc) return;
@@ -117,9 +124,11 @@ export default function Finder() {
     const targetX = leftPercent * (BASE_MAP_WIDTH * scale);
     const targetY = topPercent * (BASE_MAP_HEIGHT * scale);
 
-    // Center target relative to mobile screen viewport (approx 390w x 420h)
-    const scrollX = Math.max(0, targetX - 195);
-    const scrollY = Math.max(0, targetY - 210);
+    // Center target dynamically relative to container viewport (falling back to 195w x 210h if not yet measured)
+    const halfW = vpWidth > 0 ? vpWidth / 2 : 195;
+    const halfH = vpHeight > 0 ? vpHeight / 2 : 210;
+    const scrollX = Math.max(0, targetX - halfW);
+    const scrollY = Math.max(0, targetY - halfH);
 
     horizontalScrollRef.current?.scrollTo({ x: scrollX, animated });
     verticalScrollRef.current?.scrollTo({ y: scrollY, animated });
@@ -227,7 +236,15 @@ export default function Finder() {
         })}
       </ScrollView>
 
-      <View style={styles.mapContainer}>
+      <View
+        style={styles.mapContainer}
+        testID="map-container"
+        onLayout={({ nativeEvent }) => {
+          const { width, height } = nativeEvent.layout;
+          setViewportSize({ width, height });
+          centerOnLocation(selected, false, mapScale, width, height);
+        }}
+      >
         {/* Scrollable & zoomable 2D map viewport */}
         <ScrollView
           ref={horizontalScrollRef}

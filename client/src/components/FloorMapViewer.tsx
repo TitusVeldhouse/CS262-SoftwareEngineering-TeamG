@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -8,13 +8,20 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, G, Polygon, Polyline } from "react-native-svg";
-import { calculateMapFrame, clampMapScale } from "./map-geometry";
+import {
+  calculateDynamicMinScale,
+  calculateMapFrame,
+  calculatePanLimitsFromDimensions,
+  clampMapScale,
+  clampPanOffset,
+} from "./map-geometry";
 
 // Overlay points use source-PNG pixels so they stay aligned at every zoom level.
 type MapPoint = readonly [number, number];
@@ -60,6 +67,8 @@ export default function FloorMapViewer({
   const [viewport, setViewport] = useState<Size>({ width: 0, height: 0 });
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const isFirstLayout = useRef(true);
 
   const mapFrame = calculateMapFrame(
     imageWidth,
@@ -69,6 +78,7 @@ export default function FloorMapViewer({
   );
   const mapWidth = mapFrame.width;
   const mapHeight = mapFrame.height;
+  const dynamicMinScale = calculateDynamicMinScale(imageWidth, imageHeight);
 
   const scale = useSharedValue(1);
   const pinchStartScale = useSharedValue(1);
@@ -77,14 +87,38 @@ export default function FloorMapViewer({
   const panStartX = useSharedValue(0);
   const panStartY = useSharedValue(0);
 
+  const sharedMapWidth = useSharedValue(0);
+  const sharedMapHeight = useSharedValue(0);
+  const sharedViewportW = useSharedValue(0);
+  const sharedViewportH = useSharedValue(0);
+
+  useEffect(() => {
+    sharedMapWidth.set(mapWidth);
+    sharedMapHeight.set(mapHeight);
+    sharedViewportW.set(viewport.width);
+    sharedViewportH.set(viewport.height);
+  }, [mapWidth, mapHeight, viewport.width, viewport.height]);
+
   const pinch = Gesture.Pinch()
     .onBegin(() => {
       pinchStartScale.set(scale.get());
     })
     .onUpdate((event) => {
-      const nextScale = pinchStartScale.get() * event.scale;
-      // Keep the clamp inline because pinch updates run as UI worklets.
-      scale.set(Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale)));
+      const nextScale = clampMapScale(
+        pinchStartScale.get() * event.scale,
+        dynamicMinScale,
+        MAX_SCALE,
+      );
+      scale.set(nextScale);
+      const limits = calculatePanLimitsFromDimensions(
+        sharedMapWidth.get(),
+        sharedMapHeight.get(),
+        nextScale,
+        sharedViewportW.get(),
+        sharedViewportH.get(),
+      );
+      translateX.set(clampPanOffset(translateX.get(), limits.minX, limits.maxX));
+      translateY.set(clampPanOffset(translateY.get(), limits.minY, limits.maxY));
     });
 
   // Leave two-finger input exclusively to the pinch recognizer.
@@ -92,10 +126,24 @@ export default function FloorMapViewer({
     .onBegin(() => {
       panStartX.set(translateX.get());
       panStartY.set(translateY.get());
+      runOnJS(setIsPanning)(true);
     })
     .onUpdate((event) => {
-      translateX.set(panStartX.get() + event.translationX);
-      translateY.set(panStartY.get() + event.translationY);
+      const currentScale = scale.get();
+      const limits = calculatePanLimitsFromDimensions(
+        sharedMapWidth.get(),
+        sharedMapHeight.get(),
+        currentScale,
+        sharedViewportW.get(),
+        sharedViewportH.get(),
+      );
+      const rawX = panStartX.get() + event.translationX;
+      const rawY = panStartY.get() + event.translationY;
+      translateX.set(clampPanOffset(rawX, limits.minX, limits.maxX));
+      translateY.set(clampPanOffset(rawY, limits.minY, limits.maxY));
+    })
+    .onFinalize(() => {
+      runOnJS(setIsPanning)(false);
     });
 
   // One transform keeps the raster and its SVG highlights/routes in sync.
@@ -108,23 +156,58 @@ export default function FloorMapViewer({
     ],
   }));
 
+  const recalibrateMap = (animated = false) => {
+    if (animated) {
+      scale.set(withTiming(1, { duration: 160 }));
+      translateX.set(withTiming(0, { duration: 160 }));
+      translateY.set(withTiming(0, { duration: 160 }));
+    } else {
+      scale.set(1);
+      translateX.set(0);
+      translateY.set(0);
+    }
+  };
+
   useEffect(() => {
-    scale.set(1);
-    translateX.set(0);
-    translateY.set(0);
-  }, [asset, scale, translateX, translateY]);
+    recalibrateMap(false);
+  }, [asset, imageWidth, imageHeight]);
+
+  useEffect(() => {
+    if (viewport.width > 0 && viewport.height > 0 && isFirstLayout.current) {
+      isFirstLayout.current = false;
+      recalibrateMap(false);
+    }
+  }, [viewport.width, viewport.height]);
 
   const isLoading =
     !failed && (!loaded || viewport.width === 0 || viewport.height === 0);
 
   const zoomBy = (factor: number) => {
-    scale.set(withTiming(clampMapScale(scale.get() * factor), { duration: 140 }));
+    const nextScale = clampMapScale(scale.get() * factor, dynamicMinScale, MAX_SCALE);
+    scale.set(withTiming(nextScale, { duration: 140 }));
+    const limits = calculatePanLimitsFromDimensions(
+      mapWidth,
+      mapHeight,
+      nextScale,
+      viewport.width,
+      viewport.height,
+    );
+    translateX.set(
+      withTiming(
+        clampPanOffset(translateX.get(), limits.minX, limits.maxX),
+        { duration: 140 },
+      ),
+    );
+    translateY.set(
+      withTiming(
+        clampPanOffset(translateY.get(), limits.minY, limits.maxY),
+        { duration: 140 },
+      ),
+    );
   };
 
   const fitMap = () => {
-    scale.set(withTiming(1, { duration: 140 }));
-    translateX.set(withTiming(0, { duration: 140 }));
-    translateY.set(withTiming(0, { duration: 140 }));
+    recalibrateMap(true);
   };
 
   return (
@@ -132,19 +215,29 @@ export default function FloorMapViewer({
       <View
         style={styles.mapStage}
         testID="map-stage"
-        onLayout={({ nativeEvent }) =>
-          setViewport({
-            width: nativeEvent.layout.width,
-            height: nativeEvent.layout.height,
-          })
-        }
+        onLayout={({ nativeEvent }) => {
+          const { width, height } = nativeEvent.layout;
+          if (width > 0 && height > 0) {
+            setViewport({ width, height });
+          }
+        }}
         // @ts-ignore - onWheel is supported on web for trackpad and mouse wheel scrolling
         onWheel={(e: any) => {
+          const currentScale = scale.get();
+          const limits = calculatePanLimitsFromDimensions(
+            mapWidth,
+            mapHeight,
+            currentScale,
+            viewport.width,
+            viewport.height,
+          );
           if (e?.nativeEvent?.deltaY) {
-            translateY.set(translateY.get() - e.nativeEvent.deltaY);
+            const nextY = translateY.get() - e.nativeEvent.deltaY;
+            translateY.set(clampPanOffset(nextY, limits.minY, limits.maxY));
           }
           if (e?.nativeEvent?.deltaX) {
-            translateX.set(translateX.get() - e.nativeEvent.deltaX);
+            const nextX = translateX.get() - e.nativeEvent.deltaX;
+            translateX.set(clampPanOffset(nextX, limits.minX, limits.maxX));
           }
         }}
       >
@@ -155,27 +248,42 @@ export default function FloorMapViewer({
         ) : (
           <>
             <GestureDetector gesture={mapGesture}>
-              <Animated.View
+              <View
                 style={[
-                  styles.mapSurface,
-                  {
-                    width: mapWidth,
-                    height: mapHeight,
-                    left: mapFrame.left,
-                    top: mapFrame.top,
-                  },
-                  mapTransform,
+                  styles.gestureSurface,
+                  // @ts-ignore - cursor affordance for desktop mouse click-and-drag
+                  { cursor: isPanning ? "grabbing" : "grab" },
                 ]}
-                accessibilityLabel={title}
-                testID="map-surface"
+                collapsable={false}
+                testID="map-gesture-surface"
               >
+                <Animated.View
+                  style={[
+                    styles.mapSurface,
+                    {
+                      width: mapWidth,
+                      height: mapHeight,
+                      left: mapFrame.left,
+                      top: mapFrame.top,
+                    },
+                    mapTransform,
+                  ]}
+                  testID="map-surface"
+                >
                 <Image
                   source={asset}
                   resizeMode="stretch"
-                  style={StyleSheet.absoluteFill}
+                  style={[
+                    StyleSheet.absoluteFill,
+                    // @ts-ignore - prevent ghost image drag on web
+                    { userSelect: "none" },
+                  ]}
+                  // @ts-ignore
+                  draggable={false}
                   onLoad={() => setLoaded(true)}
                   onError={() => setFailed(true)}
                   accessibilityLabel={title}
+                  testID="floor-plan-image"
                 />
                 <Svg
                   width={mapWidth}
@@ -216,7 +324,8 @@ export default function FloorMapViewer({
                     })}
                 </Svg>
               </Animated.View>
-            </GestureDetector>
+            </View>
+          </GestureDetector>
 
             {isLoading && (
               <View style={[styles.loading, { pointerEvents: "none" }]}>
@@ -270,6 +379,10 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
+  },
+  gestureSurface: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
   },
   mapSurface: {
     position: "absolute",

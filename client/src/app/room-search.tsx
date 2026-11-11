@@ -254,7 +254,7 @@ export default function RoomSearch() {
 
           <View style={styles.planContainer}>
             <FloorMapViewer
-              key={selectedFloor.asset}
+              key={`${selectedBuilding.name}-${selectedFloor.label}-${selectedFloor.asset}`}
               asset={selectedFloor.asset}
               imageWidth={selectedFloor.width}
               imageHeight={selectedFloor.height}
