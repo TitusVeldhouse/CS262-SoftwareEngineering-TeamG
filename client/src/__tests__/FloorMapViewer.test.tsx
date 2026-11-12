@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react-native";
+import { render, fireEvent } from "@testing-library/react-native";
 
 jest.mock("react-native-reanimated", () => {
   const React = require("react");
@@ -53,74 +53,76 @@ describe("FloorMapViewer Component", () => {
     imageHeight: 1035,
   };
 
-  it("renders the root plan-viewer, stage, and full-stage gesture catch surface", () => {
-    render(<FloorMapViewer {...sampleProps} />);
+  it("renders the root plan-viewer, stage, and full-stage gesture catch surface", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} />);
 
-    expect(screen.getByTestId("plan-viewer")).toBeTruthy();
-    expect(screen.getByTestId("map-stage")).toBeTruthy();
-    expect(screen.getByTestId("map-gesture-surface")).toBeTruthy();
-    expect(screen.getByTestId("map-surface")).toBeTruthy();
+    expect(view.getByTestId("plan-viewer")).toBeTruthy();
+    expect(view.getByTestId("map-stage")).toBeTruthy();
+    expect(view.getByTestId("map-gesture-surface")).toBeTruthy();
+    expect(view.getByTestId("map-surface")).toBeTruthy();
   });
 
-  it("renders zoom-in, zoom-out, and reset-map (Fit) controls", () => {
-    render(<FloorMapViewer {...sampleProps} />);
+  it("renders zoom-in, zoom-out, and reset-map (Fit) controls", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} />);
 
-    expect(screen.getByTestId("zoom-in")).toBeTruthy();
-    expect(screen.getByTestId("zoom-out")).toBeTruthy();
-    expect(screen.getByTestId("reset-map")).toBeTruthy();
+    expect(view.getByTestId("zoom-in")).toBeTruthy();
+    expect(view.getByTestId("zoom-out")).toBeTruthy();
+    expect(view.getByTestId("reset-map")).toBeTruthy();
   });
 
-  it("handles layout events on map-stage to calibrate viewport dimensions", () => {
-    render(<FloorMapViewer {...sampleProps} />);
+  it("handles layout events on map-stage to calibrate viewport dimensions", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} />);
 
-    const stage = screen.getByTestId("map-stage");
-    fireEvent(stage, "layout", {
+    const stage = view.getByTestId("map-stage");
+    await fireEvent(stage, "layout", {
       nativeEvent: { layout: { width: 380, height: 500 } },
     });
 
-    expect(screen.getByTestId("map-surface")).toBeTruthy();
+    expect(view.getByTestId("map-surface")).toBeTruthy();
   });
 
-  it("allows pressing zoom-in, zoom-out, and reset-map (Fit)", () => {
-    render(<FloorMapViewer {...sampleProps} />);
+  it("allows pressing zoom-in, zoom-out, and reset-map (Fit)", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} />);
 
-    const zoomIn = screen.getByTestId("zoom-in");
-    const zoomOut = screen.getByTestId("zoom-out");
-    const fitBtn = screen.getByTestId("reset-map");
+    const zoomIn = view.getByTestId("zoom-in");
+    const zoomOut = view.getByTestId("zoom-out");
+    const fitBtn = view.getByTestId("reset-map");
 
-    fireEvent.press(zoomIn);
-    fireEvent.press(zoomOut);
-    fireEvent.press(fitBtn);
+    await fireEvent.press(zoomIn);
+    await fireEvent.press(zoomOut);
+    await fireEvent.press(fitBtn);
 
-    expect(screen.getByTestId("reset-map")).toBeTruthy();
+    expect(view.getByTestId("reset-map")).toBeTruthy();
   });
 
-  it("handles mouse wheel events on web to scroll and pan within clamped boundaries", () => {
-    render(<FloorMapViewer {...sampleProps} />);
+  it("handles mouse wheel events on web to scroll and pan within clamped boundaries", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} />);
 
-    const stage = screen.getByTestId("map-stage");
-    fireEvent(stage, "wheel", {
+    const stage = view.getByTestId("map-stage");
+    await fireEvent(stage, "wheel", {
       nativeEvent: { deltaY: 30, deltaX: 20 },
     });
 
-    expect(screen.getByTestId("map-surface")).toBeTruthy();
+    expect(view.getByTestId("map-surface")).toBeTruthy();
   });
 
-  it("recalibrates panning and scale when switching to a different floor asset", () => {
-    const { rerender } = render(<FloorMapViewer {...sampleProps} asset={1} />);
+  it("recalibrates panning and scale when switching to a different floor asset", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} asset={1} />);
 
     // Trigger zoom to change scale
-    fireEvent.press(screen.getByTestId("zoom-in"));
+    await fireEvent.press(view.getByTestId("zoom-in"));
 
     // Switch asset
-    rerender(<FloorMapViewer {...sampleProps} asset={2} title="Hiemenga Hall Level 3" />);
+    await view.rerender(
+      <FloorMapViewer {...sampleProps} asset={2} title="Hiemenga Hall Level 3" />,
+    );
 
-    expect(screen.getByTestId("map-surface")).toBeTruthy();
-    expect(screen.getByTestId("map-gesture-surface")).toBeTruthy();
+    expect(view.getByTestId("map-surface")).toBeTruthy();
+    expect(view.getByTestId("map-gesture-surface")).toBeTruthy();
   });
 
-  it("renders SVG room highlights and routes on the map-overlay", () => {
-    render(
+  it("renders SVG room highlights and routes on the map-overlay", async () => {
+    const view = await render(
       <FloorMapViewer
         {...sampleProps}
         highlights={[
@@ -146,16 +148,16 @@ describe("FloorMapViewer Component", () => {
       />,
     );
 
-    expect(screen.getByTestId("map-overlay")).toBeTruthy();
+    expect(view.getByTestId("map-overlay")).toBeTruthy();
   });
 
-  it("displays error message if the floor plan asset fails to load", () => {
-    render(<FloorMapViewer {...sampleProps} />);
+  it("displays error message if the floor plan asset fails to load", async () => {
+    const view = await render(<FloorMapViewer {...sampleProps} />);
 
-    const image = screen.getByLabelText("Hiemenga Hall Level 2");
-    fireEvent(image, "error");
+    const image = view.getByLabelText("Hiemenga Hall Level 2");
+    await fireEvent(image, "error");
 
-    expect(screen.getByTestId("plan-load-error")).toBeTruthy();
-    expect(screen.getByText("This floor plan could not be loaded.")).toBeTruthy();
+    expect(view.getByTestId("plan-load-error")).toBeTruthy();
+    expect(view.getByText("This floor plan could not be loaded.")).toBeTruthy();
   });
 });

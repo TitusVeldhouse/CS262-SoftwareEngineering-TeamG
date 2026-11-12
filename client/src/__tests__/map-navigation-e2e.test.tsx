@@ -13,14 +13,14 @@ jest.mock("../components/FloorMapViewer", () => {
 });
 
 describe("End-to-End Campus & Indoor Map Navigation", () => {
-  it("Journey 1: Full user loop (Landing -> Campus Map -> Floor Plan -> Exit to Campus -> Landing)", () => {
+  it("Journey 1: Full user loop (Landing -> Campus Map -> Floor Plan -> Exit to Campus -> Landing)", async () => {
     // 1. User arrives on Landing Page
-    renderRouter("src/app", { initialUrl: "/" });
+    await renderRouter("src/app", { initialUrl: "/" });
     expect(screen.getByTestId("landing-screen")).toBeTruthy();
     expect(screen.getByText("Never get lost on campus again.")).toBeTruthy();
 
     // 2. User presses 'Find a Room' CTA
-    fireEvent.press(screen.getByTestId("get-started-button"));
+    await fireEvent.press(screen.getByTestId("get-started-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
 
@@ -28,99 +28,99 @@ describe("End-to-End Campus & Indoor Map Navigation", () => {
     const zoomIn = screen.getByTestId("zoom-in");
     const zoomOut = screen.getByTestId("zoom-out");
 
-    fireEvent.press(zoomIn);
-    fireEvent.press(zoomOut);
+    await fireEvent.press(zoomIn);
+    await fireEvent.press(zoomOut);
 
     // 4. User selects Hiemenga Hall pin on campus map
-    fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
+    await fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
     expect(screen.getByTestId("result-card")).toBeTruthy();
     expect(screen.getByTestId("enter-building-button")).toBeTruthy();
 
     // 5. User transitions inside building via 'View Floor Plan'
-    fireEvent.press(screen.getByTestId("enter-building-button"));
+    await fireEvent.press(screen.getByTestId("enter-building-button"));
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
 
     // 6. User switches to a different floor
     const level3Option = screen.getByTestId("floor-option-Level 3");
-    fireEvent.press(level3Option);
+    await fireEvent.press(level3Option);
     expect(level3Option.props.accessibilityState.selected).toBe(true);
 
     // 7. User exits back to the campus map
     const exitBtn = screen.getByTestId("exit-to-campus-button");
     expect(exitBtn).toBeTruthy();
-    fireEvent.press(exitBtn);
+    await fireEvent.press(exitBtn);
 
     // 8. User lands on Finder with Hiemenga Hall focused and can recenter on Quad
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getAllByText("Hiemenga Hall").length).toBeGreaterThan(0);
-    fireEvent.press(screen.getByTestId("center-map-button"));
+    await fireEvent.press(screen.getByTestId("center-map-button"));
 
     // 9. User navigates back out through history
-    fireEvent.press(screen.getByTestId("back-button"));
+    await fireEvent.press(screen.getByTestId("back-button"));
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId("room-search-back-button"));
+    await fireEvent.press(screen.getByTestId("room-search-back-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId("back-button"));
+    await fireEvent.press(screen.getByTestId("back-button"));
     expect(screen.getByTestId("landing-screen")).toBeTruthy();
   });
 
-  it("Journey 2: Menu search -> Building selection -> Multi-building transitions", () => {
+  it("Journey 2: Menu search -> Building selection -> Multi-building transitions", async () => {
     // 1. Start on Landing
-    renderRouter("src/app", { initialUrl: "/" });
+    await renderRouter("src/app", { initialUrl: "/" });
 
     // 2. Click 'Classroom & Room Search' feature card
-    fireEvent.press(screen.getByTestId("classroom-search-feature"));
+    await fireEvent.press(screen.getByTestId("classroom-search-feature"));
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
 
     // 3. Search for Science Building
     const searchInput = screen.getByTestId("building-search-input");
-    fireEvent.changeText(searchInput, "Science");
+    await fireEvent.changeText(searchInput, "Science");
 
     const scienceOption = screen.getByTestId("building-option-Science Building");
-    fireEvent.press(scienceOption);
+    await fireEvent.press(scienceOption);
 
     expect(screen.getByText("Science Building")).toBeTruthy();
 
     // 4. Switch floors in Science Building
     const level1Option = screen.getByTestId("floor-option-Level 1");
-    fireEvent.press(level1Option);
+    await fireEvent.press(level1Option);
     expect(level1Option.props.accessibilityState.selected).toBe(true);
 
     // 5. Exit out to the Campus Map
-    fireEvent.press(screen.getByTestId("exit-to-campus-button"));
+    await fireEvent.press(screen.getByTestId("exit-to-campus-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
 
     // 6. Select a different campus building (Devos Communication Building)
-    fireEvent.press(screen.getByTestId("pin-Devos Communication Building"));
-    fireEvent.press(screen.getByTestId("enter-building-button"));
+    await fireEvent.press(screen.getByTestId("pin-Devos Communication Building"));
+    await fireEvent.press(screen.getByTestId("enter-building-button"));
 
     // 7. Verifies transition into Devos Communication Center floor plan
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Devos Communication Center")).toBeTruthy();
 
     // 8. Exit back to campus map
-    fireEvent.press(screen.getByTestId("exit-to-campus-button"));
+    await fireEvent.press(screen.getByTestId("exit-to-campus-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
   });
 
-  it("Journey 3: Direct deep-link URL parameter handling", () => {
+  it("Journey 3: Direct deep-link URL parameter handling", async () => {
     // Directly open finder with building param
-    renderRouter("src/app", { initialUrl: "/finder?building=Spoelhof%20Center" });
+    await renderRouter("src/app", { initialUrl: "/finder?building=Spoelhof%20Center" });
 
     // Pre-selects Spoelhof Center
     const trigger = screen.getByTestId("location-dropdown-trigger");
     expect(within(trigger).getByText("Spoelhof Center")).toBeTruthy();
 
     // Enters building directly
-    fireEvent.press(screen.getByTestId("enter-building-button"));
+    await fireEvent.press(screen.getByTestId("enter-building-button"));
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Spoelhof University Center")).toBeTruthy();
 
     // Exits cleanly back
-    fireEvent.press(screen.getByTestId("exit-to-campus-button"));
+    await fireEvent.press(screen.getByTestId("exit-to-campus-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
   });
 
@@ -141,4 +141,3 @@ describe("End-to-End Campus & Indoor Map Navigation", () => {
     expect(crossCampus?.sharedMapTitle).toBe("Campus Master Plan");
   });
 });
-
