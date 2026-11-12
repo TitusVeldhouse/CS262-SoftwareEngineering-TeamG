@@ -1,0 +1,15 @@
+{
+  "name": "cs262-software-engineering-team-g",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CS 262 Team G Project Root",
+  "scripts": {
+    "start": "npm start --prefix client",
+    "expo": "npm start --prefix client",
+    "test": "npm test --prefix client",
+    "test:watch": "npm run test:watch --prefix client",
+    "lint": "npm run lint --prefix client",
+    "render:floorplans": "npm run render:floorplans --prefix client"
+  }
+}
+

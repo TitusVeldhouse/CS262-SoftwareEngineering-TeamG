@@ -19,5 +19,28 @@ CalvinFinder is for anyone visiting or navigating Calvin University who needs an
 The client app (Calvin Finder, an Expo / React Native prototype) lives in [client/](client/).
 See [client/README.md](client/README.md) for setup, screens, and testing instructions.
 
+### Quickstart
+
+From the repository root, you can run:
+
+```bash
+# Start the Expo development server
+npm start
+
+# Run the test suite
+npm test
+
+# Run linting
+npm run lint
+```
+
+Or navigate directly into the `client/` folder:
+
+```bash
+cd client
+npm install
+npx expo start
+```
+
 ## User Stories
 User stories and software requirements specification can be accessed as pdfs in /docs
