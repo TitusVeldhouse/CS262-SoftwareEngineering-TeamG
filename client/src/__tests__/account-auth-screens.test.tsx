@@ -22,73 +22,99 @@ jest.mock("../components/FloorMapViewer", () => {
 });
 
 describe("Account Auth Screens & User Avatar Integration", () => {
+  const originalFetch = global.fetch;
+
   beforeEach(() => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("Network offline"));
     resetLocalFavoritesStorage();
     resetLocalAuthState();
   });
 
-  it("renders the guest avatar button in the top right corner and navigates to the login page", () => {
-    renderRouter("src/app", { initialUrl: "/" });
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("renders the guest avatar button in the top right corner and navigates to the login page", async () => {
+    await renderRouter("src/app", { initialUrl: "/" });
 
     const avatarBtn = screen.getByTestId("user-avatar-button");
     expect(avatarBtn).toBeTruthy();
     expect(screen.getByText("Log In")).toBeTruthy();
 
-    fireEvent.press(avatarBtn);
+    await fireEvent.press(avatarBtn);
 
-    expect(screen.getByTestId("login-screen")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("login-screen")).toBeTruthy();
+    });
     expect(screen.getByTestId("login-email-input")).toBeTruthy();
     expect(screen.getByTestId("login-password-input")).toBeTruthy();
     expect(screen.getByText("Haven't made an account yet? Click")).toBeTruthy();
     expect(screen.getByText("HERE!")).toBeTruthy();
   });
 
-  it("navigates between Login and Sign Up via 'Click HERE!' links", () => {
-    renderRouter("src/app", { initialUrl: "/login" });
+  it("navigates between Login and Sign Up via 'Click HERE!' links", async () => {
+    await renderRouter("src/app", { initialUrl: "/login" });
 
-    expect(screen.getByTestId("login-screen")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("login-screen")).toBeTruthy();
+    });
 
     // Tap HERE! to go to signup page
-    fireEvent.press(screen.getByTestId("login-signup-link"));
-    expect(screen.getByTestId("signup-screen")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-signup-link"));
+    await waitFor(() => {
+      expect(screen.getByTestId("signup-screen")).toBeTruthy();
+    });
     expect(screen.getByTestId("signup-display-name-input")).toBeTruthy();
     expect(screen.getByText("Already have an account? Click")).toBeTruthy();
 
     // Tap HERE! to return to login page
-    fireEvent.press(screen.getByTestId("signup-login-link"));
-    expect(screen.getByTestId("login-screen")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("signup-login-link"));
+    await waitFor(() => {
+      expect(screen.getByTestId("login-screen")).toBeTruthy();
+    });
   });
 
   it("catches temporary guest favorites upon signing up, updates the avatar to user initials, and allows signing out", async () => {
     // 1. Start as guest on landing page and bookmark a favorite
-    renderRouter("src/app", { initialUrl: "/" });
+    await renderRouter("src/app", { initialUrl: "/" });
 
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
-    fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
     expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("favorites-collapse-button"));
+    await fireEvent.press(screen.getByTestId("favorites-collapse-button"));
 
     // 2. Open login page from top-right avatar button
-    fireEvent.press(screen.getByTestId("user-avatar-button"));
-    expect(screen.getByTestId("login-screen")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("user-avatar-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("login-screen")).toBeTruthy();
+    });
 
     // 3. Switch to signup page via HERE! link
-    fireEvent.press(screen.getByTestId("login-signup-link"));
-    expect(screen.getByTestId("signup-screen")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-signup-link"));
+    await waitFor(() => {
+      expect(screen.getByTestId("signup-screen")).toBeTruthy();
+    });
 
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("signup-display-name-input"),
       "Titus Veldhouse",
     );
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("signup-email-input"),
       "titus@calvin.edu",
     );
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("signup-password-input"),
       "password123",
     );
-    fireEvent.press(screen.getByTestId("signup-submit-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("signup-submit-button").props.accessibilityState?.disabled,
+      ).toBeFalsy();
+    });
+
+    await fireEvent.press(screen.getByTestId("signup-submit-button"));
 
     // 4. Returns to previous screen; avatar now displays user initials and name
     await waitFor(() => {
@@ -98,14 +124,16 @@ describe("Account Auth Screens & User Avatar Integration", () => {
     });
 
     // Favorites menu still holds the caught favorite, now synced to account
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
     expect(screen.getByText("Account Synced · Titus Veldhouse")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("favorites-collapse-button"));
+    await fireEvent.press(screen.getByTestId("favorites-collapse-button"));
 
     // 5. Tap avatar to open dedicated Account Profile screen
-    fireEvent.press(screen.getByTestId("user-avatar-button"));
-    expect(screen.getByTestId("account-screen")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("user-avatar-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("account-screen")).toBeTruthy();
+    });
     expect(screen.getByTestId("account-display-name")).toHaveTextContent(
       "Titus Veldhouse",
     );
@@ -117,7 +145,7 @@ describe("Account Auth Screens & User Avatar Integration", () => {
     );
 
     // 6. Sign out -> returns to guest mode with guest button and cleared temporary list
-    fireEvent.press(screen.getByTestId("account-sign-out-button"));
+    await fireEvent.press(screen.getByTestId("account-sign-out-button"));
 
     await waitFor(() => {
       expect(screen.getByTestId("user-avatar-button")).toBeTruthy();
@@ -125,7 +153,7 @@ describe("Account Auth Screens & User Avatar Integration", () => {
     });
 
     expect(getFavoritesStorageAdapter().mode).toBe("local-temp");
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     expect(screen.getByTestId("favorites-empty-state")).toBeTruthy();
     expect(screen.getByText("Temporary Local List")).toBeTruthy();
   });

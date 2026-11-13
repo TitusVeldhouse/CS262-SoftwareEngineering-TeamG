@@ -13,8 +13,10 @@ import {
   getFavoritesStorageAdapter,
   resetLocalFavoritesStorage,
   setFavoritesStorageAdapter,
-  type FavoritePlace,
-  type FavoritesStorageAdapter,
+} from "../data/favorites";
+import type {
+  FavoritePlace,
+  FavoritesStorageAdapter,
 } from "../data/favorites";
 import { resetLocalAuthState } from "../data/auth-context";
 import { getAllRooms } from "../data/campus-layout";
@@ -111,98 +113,105 @@ describe("Favorites Storage & Builder Helpers", () => {
 });
 
 describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
+  const originalFetch = global.fetch;
+
   beforeEach(() => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("Network offline"));
     resetLocalFavoritesStorage();
     resetLocalAuthState();
   });
 
-  it("starts collapsed and expands/collapses cleanly via toggle, handle, and backdrop", () => {
-    renderRouter("src/app", { initialUrl: "/" });
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("starts collapsed and expands/collapses cleanly via toggle, handle, and backdrop", async () => {
+    await renderRouter("src/app", { initialUrl: "/" });
 
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
 
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     expect(screen.getByTestId("favorites-drawer")).toBeTruthy();
     expect(screen.getByTestId("favorites-empty-state")).toBeTruthy();
     expect(screen.getByTestId("favorites-storage-notice")).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId("favorites-collapse-button"));
+    await fireEvent.press(screen.getByTestId("favorites-collapse-button"));
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
 
     // Open again and collapse using the side rail handle
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     expect(screen.getByTestId("favorites-drawer")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("favorites-side-collapse-handle"));
+    await fireEvent.press(screen.getByTestId("favorites-side-collapse-handle"));
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
 
     // Open again and collapse using the dimmed backdrop
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     expect(screen.getByTestId("favorites-drawer")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("favorites-backdrop"));
+    await fireEvent.press(screen.getByTestId("favorites-backdrop"));
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
   });
 
-  it("saves campus buildings and POIs on Finder, lists them in the side menu, and filters/removes cleanly", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("saves campus buildings and POIs on Finder, lists them in the side menu, and filters/removes cleanly", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     // Favorite selected building (Hekman Library by default)
-    fireEvent.press(screen.getByTestId("favorite-building-button"));
+    await fireEvent.press(screen.getByTestId("favorite-building-button"));
     // Favorite Restrooms POI
-    fireEvent.press(screen.getByTestId("favorite-poi-Restrooms"));
+    await fireEvent.press(screen.getByTestId("favorite-poi-Restrooms"));
 
     expect(screen.getByTestId("favorites-count-badge")).toHaveTextContent("2");
 
     // Expand side drawer
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     expect(screen.getByTestId("favorite-item-building:Hekman Library")).toBeTruthy();
     expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
 
     // Filter to POIs only
-    fireEvent.press(screen.getByTestId("favorites-filter-poi"));
+    await fireEvent.press(screen.getByTestId("favorites-filter-poi"));
     expect(screen.queryByTestId("favorite-item-building:Hekman Library")).toBeNull();
     expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
 
     // Back to All and remove one item
-    fireEvent.press(screen.getByTestId("favorites-filter-all"));
-    fireEvent.press(screen.getByTestId("favorite-remove-poi:Restrooms"));
+    await fireEvent.press(screen.getByTestId("favorites-filter-all"));
+    await fireEvent.press(screen.getByTestId("favorite-remove-poi:Restrooms"));
     expect(screen.queryByTestId("favorite-item-poi:Restrooms")).toBeNull();
     expect(screen.getByTestId("favorite-item-building:Hekman Library")).toBeTruthy();
 
     // Clear all temporary favorites
-    fireEvent.press(screen.getByTestId("favorites-clear-button"));
+    await fireEvent.press(screen.getByTestId("favorites-clear-button"));
     expect(screen.getByTestId("favorites-empty-state")).toBeTruthy();
   });
 
-  it("saves rooms and floors on Room Search, highlights selected rooms, and navigates directly from Favorites", () => {
-    renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
+  it("saves rooms and floors on Room Search, highlights selected rooms, and navigates directly from Favorites", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
 
     // Save Level 2 floor and Classroom 211 directly from the floor strip
-    fireEvent.press(screen.getByTestId("favorite-floor-button"));
-    fireEvent.press(screen.getByTestId("favorite-room-HH-211"));
+    await fireEvent.press(screen.getByTestId("favorite-floor-button"));
+    await fireEvent.press(screen.getByTestId("favorite-room-HH-211"));
 
     // Selecting a room chip passes its highlight polygon to FloorMapViewer
-    fireEvent.press(screen.getByTestId("floor-room-chip-HH-211"));
+    await fireEvent.press(screen.getByTestId("floor-room-chip-HH-211"));
     expect(screen.getByTestId("plan-viewer").props.accessibilityHint).toBe(
       "highlights:1",
     );
 
     // Go back to Landing screen and open Favorites side menu
-    fireEvent.press(screen.getByTestId("room-search-back-button"));
+    await fireEvent.press(screen.getByTestId("room-search-back-button"));
     expect(screen.getByTestId("landing-screen")).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     const drawer = screen.getByTestId("favorites-drawer");
     expect(within(drawer).getByText("Classroom 211")).toBeTruthy();
 
     // Quick-add a room/POI directly inside the drawer
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("favorites-quick-add-input"),
       "Group Study",
     );
-    fireEvent.press(screen.getByTestId("quick-add-room:HEK-201"));
+    await fireEvent.press(screen.getByTestId("quick-add-room:HEK-201"));
 
     // Tap Classroom 211 favorite to jump directly to Room Search and collapse drawer
-    fireEvent.press(screen.getByTestId("favorite-navigate-room:HH-211"));
+    await fireEvent.press(screen.getByTestId("favorite-navigate-room:HH-211"));
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
@@ -211,18 +220,18 @@ describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
     );
 
     // Open drawer while already on Room Search and navigate to Group Study Room 201 in Hekman Library
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
-    fireEvent.press(screen.getByTestId("favorite-navigate-room:HEK-201"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("favorite-navigate-room:HEK-201"));
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
     expect(screen.getByText("Hekman Library")).toBeTruthy();
   });
 
-  it("navigates to Finder with matching POI active when tapping a saved POI favorite", () => {
-    renderRouter("src/app", { initialUrl: "/" });
+  it("navigates to Finder with matching POI active when tapping a saved POI favorite", async () => {
+    await renderRouter("src/app", { initialUrl: "/" });
 
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
-    fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
-    fireEvent.press(screen.getByTestId("favorite-navigate-poi:Restrooms"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
+    await fireEvent.press(screen.getByTestId("favorite-navigate-poi:Restrooms"));
 
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
@@ -230,30 +239,35 @@ describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
   });
 
   it("catches temporary favorites when creating an account, hides them after logout, and returns them upon login", async () => {
-    renderRouter("src/app", { initialUrl: "/" });
+    await renderRouter("src/app", { initialUrl: "/" });
 
     // 1. Add a temporary local favorite while logged out
-    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
-    fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
+    await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    await fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
     expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
     expect(screen.getByText("Temporary Local List")).toBeTruthy();
 
     // 2. Open account form inside drawer and create an account
-    fireEvent.press(screen.getByTestId("favorites-account-toggle"));
-    fireEvent.press(screen.getByTestId("account-mode-register"));
-    fireEvent.changeText(
+    await fireEvent.press(screen.getByTestId("favorites-account-toggle"));
+    await fireEvent.press(screen.getByTestId("account-mode-register"));
+    await fireEvent.changeText(
       screen.getByTestId("account-display-name-input"),
       "Titus",
     );
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("account-email-input"),
       "titus@calvin.edu",
     );
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("account-password-input"),
       "password123",
     );
-    fireEvent.press(screen.getByTestId("account-submit-button"));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("account-submit-button").props.accessibilityState?.disabled,
+      ).toBeFalsy();
+    });
+    await fireEvent.press(screen.getByTestId("account-submit-button"));
 
     await waitFor(() => {
       expect(screen.getByText("Account Synced · Titus")).toBeTruthy();
@@ -261,11 +275,11 @@ describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
 
     // Caught guest favorite remains in account list and user adds another while logged in
     expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("quick-add-room:HH-211"));
+    await fireEvent.press(screen.getByTestId("quick-add-room:HH-211"));
     expect(screen.getByTestId("favorite-item-room:HH-211")).toBeTruthy();
 
     // 3. Sign out -> reverts to empty Temporary Local List
-    fireEvent.press(screen.getByTestId("account-logout-button"));
+    await fireEvent.press(screen.getByTestId("account-logout-button"));
 
     await waitFor(() => {
       expect(screen.getByText("Temporary Local List")).toBeTruthy();
@@ -273,16 +287,21 @@ describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
     });
 
     // 4. Sign back in -> saved account favorites list is returned
-    fireEvent.press(screen.getByTestId("favorites-account-toggle"));
-    fireEvent.changeText(
+    await fireEvent.press(screen.getByTestId("favorites-account-toggle"));
+    await fireEvent.changeText(
       screen.getByTestId("account-email-input"),
       "titus@calvin.edu",
     );
-    fireEvent.changeText(
+    await fireEvent.changeText(
       screen.getByTestId("account-password-input"),
       "password123",
     );
-    fireEvent.press(screen.getByTestId("account-submit-button"));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("account-submit-button").props.accessibilityState?.disabled,
+      ).toBeFalsy();
+    });
+    await fireEvent.press(screen.getByTestId("account-submit-button"));
 
     await waitFor(() => {
       expect(screen.getByText("Account Synced · Titus")).toBeTruthy();

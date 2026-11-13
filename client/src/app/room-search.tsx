@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -32,6 +32,7 @@ import {
   buildFloorFavorite,
   buildRoomFavorite,
 } from "../data/favorites";
+import { getBuildings, searchPlaces } from "../services/api";
 
 const ACCENT = "#208AEF";
 const INK = "#101828";
@@ -90,6 +91,82 @@ function resolveBuildingAndFloor(
   return { building, floor };
 }
 
+/**
+ * Extracts building names from the API's building, room, and point-of-interest
+ * search results. The local catalog is still used for floor-plan assets.
+ */
+function extractApiBuildingNames(
+  payload: unknown,
+  buildingNamesById: Record<string, string>,
+): string[] {
+  const names = new Set<string>();
+  const visited = new Set<object>();
+
+  const addName = (candidate: unknown) => {
+    if (typeof candidate === "string" && candidate.trim()) {
+      names.add(candidate.trim());
+      return;
+    }
+
+    if (candidate && typeof candidate === "object") {
+      const record = candidate as Record<string, unknown>;
+      if (typeof record.name === "string" && record.name.trim()) {
+        names.add(record.name.trim());
+      }
+    }
+  };
+
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+
+    if (!value || typeof value !== "object") {
+      return;
+    }
+
+    if (visited.has(value)) {
+      return;
+    }
+    visited.add(value);
+
+    const record = value as Record<string, unknown>;
+    const resultType = [
+      record.type,
+      record.category,
+      record.kind,
+      record.entityType,
+    ].find((item): item is string => typeof item === "string");
+
+    if (resultType?.toLowerCase().includes("building")) {
+      addName(record.name);
+    }
+
+    addName(record.buildingName);
+    addName(record.building_name);
+    addName(record.building);
+
+    const buildingId = record.buildingId ?? record.building_id;
+    if (
+      (typeof buildingId === "string" || typeof buildingId === "number") &&
+      buildingNamesById[String(buildingId)]
+    ) {
+      names.add(buildingNamesById[String(buildingId)]);
+    }
+
+    // Support common API response envelopes without depending on one shape.
+    visit(record.results);
+    visit(record.data);
+    visit(record.items);
+    visit(record.matches);
+    visit(record.result);
+  };
+
+  visit(payload);
+  return Array.from(names);
+}
+
 export default function RoomSearch() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -115,6 +192,12 @@ export default function RoomSearch() {
     params.roomId ?? null,
   );
   const [showResults, setShowResults] = useState(!initial.building);
+  const [apiBuildingNames, setApiBuildingNames] = useState<string[]>([]);
+  const [apiBuildingNamesById, setApiBuildingNamesById] = useState<
+    Record<string, string>
+  >({});
+  const [apiSearchLoading, setApiSearchLoading] = useState(false);
+  const [apiSearchUnavailable, setApiSearchUnavailable] = useState(false);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -137,9 +220,90 @@ export default function RoomSearch() {
   }
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const matchingBuildings = BUILDINGS.filter((building) =>
+
+  // Load server building IDs once so room/POI search results can be associated
+  // with the correct local building and its locally bundled floor plans.
+  useEffect(() => {
+    let cancelled = false;
+
+    getBuildings()
+      .then((buildings) => {
+        if (cancelled) return;
+
+        const namesById: Record<string, string> = {};
+        for (const building of buildings) {
+          namesById[String(building.id)] = building.name;
+        }
+        setApiBuildingNamesById(namesById);
+      })
+      .catch(() => {
+        // Keep the local building catalog usable when the server is offline.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Search the API as the user types. API matches are shown first, while the
+  // complete local catalog remains available as a fallback.
+  useEffect(() => {
+    if (normalizedQuery.length < 2 || selectedBuilding) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setApiBuildingNames([]);
+      setApiSearchLoading(false);
+      setApiSearchUnavailable(false);
+      return;
+    }
+
+    let cancelled = false;
+    setApiSearchLoading(true);
+    setApiSearchUnavailable(false);
+
+    searchPlaces(normalizedQuery)
+      .then((results) => {
+        if (cancelled) return;
+        setApiBuildingNames(
+          extractApiBuildingNames(results, apiBuildingNamesById),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setApiBuildingNames([]);
+        setApiSearchUnavailable(true);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setApiSearchLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedQuery, selectedBuilding, apiBuildingNamesById]);
+
+  const localMatchingBuildings = BUILDINGS.filter((building) =>
     building.name.toLocaleLowerCase().includes(normalizedQuery),
   );
+
+  const apiMatchingBuildings = apiBuildingNames
+    .map((name) =>
+      BUILDINGS.find(
+        (building) => building.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      ),
+    )
+    .filter((building): building is CampusBuilding => building !== undefined);
+
+  const matchingBuildings = Array.from(
+    new Map(
+      [...apiMatchingBuildings, ...localMatchingBuildings].map((building) => [
+        building.name,
+        building,
+      ]),
+    ).values(),
+  );
+
   const academicBuildings = matchingBuildings
     .filter((building) => ACADEMIC_BUILDINGS.has(building.name))
     .sort(byName);
@@ -311,6 +475,18 @@ export default function RoomSearch() {
           autoCorrect={false}
           autoCapitalize="words"
         />
+
+        {showResults && apiSearchLoading && normalizedQuery.length >= 2 && (
+          <Text style={styles.apiSearchStatus} testID="api-search-loading">
+            Searching campus data...
+          </Text>
+        )}
+
+        {showResults && apiSearchUnavailable && normalizedQuery.length >= 2 && (
+          <Text style={styles.apiSearchStatus} testID="api-search-fallback">
+            Server search unavailable. Showing the local campus catalog.
+          </Text>
+        )}
 
         {showResults &&
           (matchingBuildings.length > 0 || matchingRooms.length > 0) && (
@@ -673,6 +849,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   floorCount: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: SUBTLE,
+  },
+  apiSearchStatus: {
+    paddingTop: 8,
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     color: SUBTLE,

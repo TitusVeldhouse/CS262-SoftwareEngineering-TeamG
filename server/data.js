@@ -312,7 +312,7 @@ const pointsOfInterest = [
   {
     id: 5,
     category: 'restroom',
-    type: 'restroom',
+    type: 'filter',
     buildingId: null,
     floor: null,
     floor_id: null,
@@ -324,7 +324,7 @@ const pointsOfInterest = [
   {
     id: 6,
     category: 'printer',
-    type: 'printer',
+    type: 'filter',
     buildingId: null,
     floor: null,
     floor_id: null,
@@ -336,7 +336,7 @@ const pointsOfInterest = [
   {
     id: 7,
     category: 'water fountain',
-    type: 'water fountain',
+    type: 'filter',
     buildingId: null,
     floor: null,
     floor_id: null,
@@ -348,7 +348,7 @@ const pointsOfInterest = [
   {
     id: 8,
     category: 'vending machine',
-    type: 'vending machine',
+    type: 'filter',
     buildingId: null,
     floor: null,
     floor_id: null,

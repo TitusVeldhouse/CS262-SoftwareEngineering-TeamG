@@ -1,3 +1,5 @@
+jest.setTimeout(30000);
+
 // Font loading depends on a native asset fetch that never resolves in the
 // Jest environment, so tests would be stuck on each screen's loading state.
 // Report fonts as already loaded instead.

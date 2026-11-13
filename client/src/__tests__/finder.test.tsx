@@ -21,10 +21,10 @@ jest.mock("../components/FloorMapViewer", () => {
 });
 
 describe("Finder screen - Core Navigation & Default State", () => {
-  it("shows the first mocked location selected by default", () => {
+  it("shows the first mocked location selected by default", async () => {
     // Jump straight to "/finder" so this test doesn't depend on the landing
     // screen's navigation working correctly.
-    renderRouter("src/app", { initialUrl: "/finder" });
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getByTestId("result-card")).toBeTruthy();
@@ -33,8 +33,8 @@ describe("Finder screen - Core Navigation & Default State", () => {
     expect(screen.getAllByText(LOCATIONS[0].name).length).toBeGreaterThan(0);
   });
 
-  it("renders every hard-coded point of interest", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("renders every hard-coded point of interest", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     // Guards against someone adding/removing a POI in the mock data without
     // updating the horizontal checklist that displays it.
@@ -43,54 +43,54 @@ describe("Finder screen - Core Navigation & Default State", () => {
     }
   });
 
-  it("toggles a point of interest checkbox on press", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("toggles a point of interest checkbox on press", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const restrooms = screen.getByTestId("poi-Restrooms");
     // No checkbox starts checked, so no checkmark glyph should exist yet.
     expect(screen.queryByText("✓", { includeHiddenElements: true })).toBeNull();
 
     // Pressing once checks it...
-    fireEvent.press(restrooms);
+    await fireEvent.press(restrooms);
     expect(screen.getByText("✓")).toBeTruthy();
 
     // ...and pressing again unchecks it (the toggle is a Set add/remove).
-    fireEvent.press(restrooms);
+    await fireEvent.press(restrooms);
     expect(screen.queryByText("✓")).toBeNull();
   });
 
-  it("opens the dropdown and selects a different location", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("opens the dropdown and selects a different location", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     // Open the location dropdown.
-    fireEvent.press(screen.getByTestId("location-dropdown-trigger"));
+    await fireEvent.press(screen.getByTestId("location-dropdown-trigger"));
     expect(screen.getByTestId("location-dropdown-list")).toBeTruthy();
 
     // Pick a location other than the default (index 0) to confirm selection
     // actually changes state rather than always matching by coincidence.
     const target = LOCATIONS[3];
-    fireEvent.press(screen.getByTestId(`location-option-${target.name}`));
+    await fireEvent.press(screen.getByTestId(`location-option-${target.name}`));
 
     // Choosing an option closes the dropdown and updates the selection.
     expect(screen.queryByTestId("location-dropdown-list")).toBeNull();
     expect(screen.getAllByText(target.name).length).toBeGreaterThan(0);
   });
 
-  it("navigates back to the landing screen", () => {
-    renderRouter("src/app", { initialUrl: "/" });
+  it("navigates back to the landing screen", async () => {
+    await renderRouter("src/app", { initialUrl: "/" });
 
     // Go landing -> finder first, then verify the back button reverses it.
-    fireEvent.press(screen.getByTestId("get-started-button"));
+    await fireEvent.press(screen.getByTestId("get-started-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId("back-button"));
+    await fireEvent.press(screen.getByTestId("back-button"));
     expect(screen.getByTestId("landing-screen")).toBeTruthy();
   });
 });
 
 describe("Finder screen - Campus Map Rendering & Blueprint", () => {
-  it("renders the scrollable map containers, zoom controls, and Center Quad button", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("renders the scrollable map containers, zoom controls, and Center Quad button", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     expect(screen.getByTestId("campus-map-scroll-horizontal")).toBeTruthy();
     expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
@@ -99,42 +99,42 @@ describe("Finder screen - Campus Map Rendering & Blueprint", () => {
     expect(screen.getByTestId("center-map-button")).toBeTruthy();
   });
 
-  it("supports zooming in, zooming out, and resetting with Center Quad", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("supports zooming in, zooming out, and resetting with Center Quad", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const zoomIn = screen.getByTestId("zoom-in");
     const zoomOut = screen.getByTestId("zoom-out");
     const centerQuad = screen.getByTestId("center-map-button");
 
-    fireEvent.press(zoomIn);
-    fireEvent.press(zoomOut);
-    fireEvent.press(centerQuad);
+    await fireEvent.press(zoomIn);
+    await fireEvent.press(zoomOut);
+    await fireEvent.press(centerQuad);
 
     expect(screen.getByTestId("center-map-button")).toBeTruthy();
   });
 
-  it("renders the campus master plan blueprint image", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("renders the campus master plan blueprint image", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const mapImage = screen.getByTestId("campus-map-image");
     expect(mapImage).toBeTruthy();
   });
-
-  it("recalibrates viewport centering on map-container layout", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+    
+  it("recalibrates viewport centering on map-container layout", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const container = screen.getByTestId("map-container");
     expect(container).toBeTruthy();
 
-    fireEvent(container, "layout", {
+    await fireEvent(container, "layout", {
       nativeEvent: { layout: { width: 500, height: 700 } },
     });
 
     expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
   });
-
-  it("renders an interactive pin for every single campus location in LOCATIONS", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+    
+  it("renders an interactive pin for every single campus location in LOCATIONS", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     for (const loc of LOCATIONS) {
       const pin = screen.getByTestId(`pin-${loc.name}`);
@@ -162,44 +162,44 @@ describe("Finder screen - Campus Map Rendering & Blueprint", () => {
 });
 
 describe("Finder screen - Pin Tapping & Bidirectional Interaction", () => {
-  it("selects a location and updates the result card when its pin dot is tapped on the map", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("selects a location and updates the result card when its pin dot is tapped on the map", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     // Pick a building other than default index 0
     const target = LOCATIONS.find((l) => l.name === "Science Building")!;
-    fireEvent.press(screen.getByTestId(`pin-${target.name}`));
+    await fireEvent.press(screen.getByTestId(`pin-${target.name}`));
 
     // Result card must reflect tapped building
     expect(screen.getByTestId("result-card")).toBeTruthy();
     expect(screen.getAllByText(target.name).length).toBeGreaterThan(0);
   });
 
-  it("displays a floating name badge on the active pin when tapped", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("displays a floating name badge on the active pin when tapped", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const target = LOCATIONS.find((l) => l.name === "Chapel")!;
-    fireEvent.press(screen.getByTestId(`pin-${target.name}`));
+    await fireEvent.press(screen.getByTestId(`pin-${target.name}`));
 
     // Chapel name should appear in the pin badge as well as the result card
     expect(screen.getAllByText(target.name).length).toBeGreaterThanOrEqual(2);
   });
 
-  it("updates the dropdown trigger text when a pin is tapped on the map", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("updates the dropdown trigger text when a pin is tapped on the map", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const target = LOCATIONS.find((l) => l.name === "Covenant Fine Arts Center")!;
-    fireEvent.press(screen.getByTestId(`pin-${target.name}`));
+    await fireEvent.press(screen.getByTestId(`pin-${target.name}`));
 
     const trigger = screen.getByTestId("location-dropdown-trigger");
     expect(within(trigger).getByText(target.name)).toBeTruthy();
   });
 
-  it("updates the active pin badge when a location is picked from the dropdown", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("updates the active pin badge when a location is picked from the dropdown", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
-    fireEvent.press(screen.getByTestId("location-dropdown-trigger"));
+    await fireEvent.press(screen.getByTestId("location-dropdown-trigger"));
     const target = LOCATIONS.find((l) => l.name === "Fieldhouse")!;
-    fireEvent.press(screen.getByTestId(`location-option-${target.name}`));
+    await fireEvent.press(screen.getByTestId(`location-option-${target.name}`));
 
     // Both result card and pin badge display the target building name
     expect(screen.getAllByText(target.name).length).toBeGreaterThanOrEqual(2);
@@ -207,26 +207,26 @@ describe("Finder screen - Pin Tapping & Bidirectional Interaction", () => {
 });
 
 describe("Finder screen - Building Floor Plan Access", () => {
-  it("shows an Enter Building / View Floor Plan button when Hiemenga Hall is selected", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("shows an Enter Building / View Floor Plan button when Hiemenga Hall is selected", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
-    fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
+    await fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
     expect(screen.getByTestId("enter-building-button")).toBeTruthy();
     expect(screen.getByText(/View Floor Plan/i)).toBeTruthy();
   });
 
-  it("navigates to room-search when View Floor Plan is pressed", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("navigates to room-search when View Floor Plan is pressed", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
-    fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
-    fireEvent.press(screen.getByTestId("enter-building-button"));
+    await fireEvent.press(screen.getByTestId("pin-Hiemenga Hall"));
+    await fireEvent.press(screen.getByTestId("enter-building-button"));
 
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Hiemenga Hall")).toBeTruthy();
   });
 
-  it("selects and focuses a building when opened with building query parameter", () => {
-    renderRouter("src/app", { initialUrl: "/finder?building=Science%20Building" });
+  it("selects and focuses a building when opened with building query parameter", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder?building=Science%20Building" });
 
     const trigger = screen.getByTestId("location-dropdown-trigger");
     expect(within(trigger).getByText("Science Building")).toBeTruthy();
@@ -266,20 +266,17 @@ describe("Finder screen - Location Routing Extensibility & Manifest Parity", () 
     ["Commons", "Commons"],
   ])(
     "routes to room-search for %s and loads matching manifest building %s",
-    (campusName, expectedManifestName) => {
-      renderRouter("src/app", { initialUrl: "/finder" });
+    async (campusName, expectedManifestName) => {
+      await renderRouter("src/app", { initialUrl: "/finder" });
 
       if (campusName !== "Hekman Library") {
-        fireEvent.press(screen.getByTestId(`pin-${campusName}`));
+        await fireEvent.press(screen.getByTestId(`pin-${campusName}`));
       }
       expect(screen.getByTestId("enter-building-button")).toBeTruthy();
 
-      fireEvent.press(screen.getByTestId("enter-building-button"));
+      await fireEvent.press(screen.getByTestId("enter-building-button"));
       expect(screen.getByTestId("room-search-screen")).toBeTruthy();
       expect(screen.getByText(expectedManifestName)).toBeTruthy();
     },
   );
 });
-
-
-

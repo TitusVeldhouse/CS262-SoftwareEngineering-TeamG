@@ -1,8 +1,15 @@
-// Finder screen (route "/finder") — the app's main data screen. Lets a user
-// pick a campus location from a dropdown (highlighting it on a mock map) and
-// filter which points of interest are shown, all backed by hard-coded data.
+// Finder screen (route "/finder"). Keeps campus map coordinates and visual
+// metadata locally while loading building and point-of-interest data from the API.
 import { useState, useEffect, useRef } from "react";
-import { Text, View, Pressable, ScrollView, StyleSheet, Image } from "react-native";
+import {
+  Text,
+  View,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Image,
+  type ScrollViewInstance,
+} from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import {
   useFonts,
@@ -25,6 +32,12 @@ import {
 } from "../data/favorites";
 import { FavoritesToggleButton } from "../components/FavoritesDrawer";
 import { UserAvatarButton } from "../components/UserAvatarButton";
+import {
+  getBuildings,
+  getPointsOfInterest,
+  type ApiBuildingSummary,
+  type ApiPointOfInterest,
+} from "../services/api";
 
 export { LOCATIONS, CAMPUS_TO_MANIFEST_BUILDINGS, POINTS_OF_INTEREST };
 
@@ -34,7 +47,6 @@ const INK = "#101828";
 const SUBTLE = "#5B6472";
 const CARD_BG = "#FFFFFF";
 const BORDER = "#E6EAF0";
-const MAP_BG = "#F8FAFC";
 const CAMPUS_MAP_IMAGE = require("../../assets/images/campus-map.png");
 
 // Dimensions for the scrollable campus blueprint canvas (preserves 2479:1944 aspect ratio)
@@ -43,6 +55,12 @@ export const BASE_MAP_HEIGHT = Math.round(1000 * (1944 / 2479)); // 784
 export const MAP_CANVAS_WIDTH = BASE_MAP_WIDTH;
 export const MAP_CANVAS_HEIGHT = BASE_MAP_HEIGHT;
 
+const POI_API_TYPES: Record<PointOfInterest, string> = {
+  Restrooms: "restroom",
+  Printers: "printer",
+  "Water Fountains": "water fountain",
+  "Vending Machines": "vending machine",
+};
 export default function Finder() {
   const router = useRouter();
   const params = useLocalSearchParams<{ building?: string; poi?: string }>();
@@ -79,13 +97,12 @@ export default function Finder() {
   const currentWidth = Math.round(BASE_MAP_WIDTH * mapScale);
   const currentHeight = Math.round(BASE_MAP_HEIGHT * mapScale);
 
+  const horizontalScrollRef = useRef<ScrollViewInstance | null>(null);
+  const verticalScrollRef = useRef<ScrollViewInstance | null>(null);
   const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({
     width: 0,
     height: 0,
   });
-
-  const horizontalScrollRef = useRef<ScrollView>(null);
-  const verticalScrollRef = useRef<ScrollView>(null);
 
   // Smoothly center the scroll viewport on a specific campus location
   const centerOnLocation = (
@@ -126,6 +143,7 @@ export default function Finder() {
     setPrevParamBuilding(params.building);
     const matched = resolveBuilding(params.building);
     if (matched) {
+      // Route parameters control this selection when navigating from a floor plan.
       setSelected(matched);
     }
   }
@@ -157,6 +175,53 @@ export default function Finder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Data retrieved from the Express backend
+  const [apiBuildings, setApiBuildings] = useState<ApiBuildingSummary[]>([]);
+  const [apiPointsOfInterest, setApiPointsOfInterest] =
+    useState<ApiPointOfInterest[]>([]);
+
+  const [apiLoading, setApiLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadServerData = async () => {
+      try {
+        setApiLoading(true);
+        setApiError(null);
+
+        const [buildings, points] = await Promise.all([
+          getBuildings(),
+          getPointsOfInterest(),
+        ]);
+
+        if (!cancelled) {
+          setApiBuildings(buildings);
+          setApiPointsOfInterest(points);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setApiError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load campus data.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setApiLoading(false);
+        }
+      }
+    };
+
+    void loadServerData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Flips a single POI's checked state without mutating the previous Set.
   const togglePoi = (poi: PointOfInterest) => {
     setActivePois((prev) => {
@@ -186,6 +251,45 @@ export default function Finder() {
   // Look up the full location record for whichever name is selected, so we
   // can show its details in the result card below.
   const activeLocation = LOCATIONS.find((l) => l.name === selected);
+
+  // Match the selected campus location to the building records returned by the API.
+  // The local manifest remains authoritative for map pins and floor-plan assets.
+  const manifestBuildingName = CAMPUS_TO_MANIFEST_BUILDINGS[selected];
+  const selectedApiBuilding = apiBuildings.find(
+    (building) =>
+      building.name.toLowerCase() === selected.toLowerCase() ||
+      building.name.toLowerCase() === manifestBuildingName?.toLowerCase(),
+  );
+
+  // The API currently provides POI type, building ID, and floor, but not map
+  // coordinates. Show server-backed counts without inventing pin positions.
+  const getPoiCount = (poi: PointOfInterest) =>
+    apiPointsOfInterest.filter(
+      (point) => point.type.toLowerCase() === POI_API_TYPES[poi],
+    ).length;
+
+  const selectedBuildingPoints = selectedApiBuilding
+    ? apiPointsOfInterest.filter(
+        (point) => point.buildingId === selectedApiBuilding.id,
+      )
+    : [];
+
+  const selectedBuildingPoiCount =
+    activePois.size === 0
+      ? selectedBuildingPoints.length
+      : selectedBuildingPoints.filter((point) =>
+          Array.from(activePois).some(
+            (poi) => POI_API_TYPES[poi] === point.type.toLowerCase(),
+          ),
+        ).length;
+
+  const apiStatusText = apiLoading
+    ? "Loading campus data from server..."
+    : apiError
+      ? "Server unavailable; campus map is shown from local data."
+      : selectedApiBuilding
+        ? `${selectedApiBuilding.name} loaded from server · ${selectedBuildingPoiCount} matching points of interest`
+        : "This building is currently available in the local campus map only.";
 
   return (
     <View style={styles.container} testID="finder-screen">
@@ -238,7 +342,9 @@ export default function Finder() {
                 <View style={[styles.checkbox, isActive && styles.checkboxActive]}>
                   {isActive && <Text style={styles.checkboxMark}>✓</Text>}
                 </View>
-                <Text style={styles.poiLabel}>{poi}</Text>
+                <Text style={styles.poiLabel}>
+                  {apiLoading || apiError ? poi : `${poi} (${getPoiCount(poi)})`}
+                </Text>
               </Pressable>
               <Pressable
                 testID={`favorite-poi-${poi}`}
@@ -463,7 +569,7 @@ export default function Finder() {
           <View style={styles.resultCard} testID="result-card">
             <View style={styles.resultCardTextWrap}>
               <Text style={styles.resultTitle}>{activeLocation.name}</Text>
-              <Text style={styles.resultSubtitle}>Showing on the map</Text>
+              <Text style={styles.resultSubtitle}>{apiStatusText}</Text>
             </View>
             <View style={styles.resultCardActions}>
               {(() => {
