@@ -24,6 +24,7 @@ import {
   buildPoiFilterFavorite,
 } from "../data/favorites";
 import { FavoritesToggleButton } from "../components/FavoritesDrawer";
+import { UserAvatarButton } from "../components/UserAvatarButton";
 
 export { LOCATIONS, CAMPUS_TO_MANIFEST_BUILDINGS, POINTS_OF_INTEREST };
 
@@ -209,7 +210,10 @@ export default function Finder() {
           </Pressable>
           <Text style={styles.headerTitle}>Calvin Finder</Text>
         </View>
-        <FavoritesToggleButton />
+        <View style={styles.headerRight}>
+          <FavoritesToggleButton />
+          <UserAvatarButton />
+        </View>
       </View>
 
       {/* Horizontally scrollable checklist: tapping a POI toggles its
@@ -540,6 +544,11 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   headerLeft: {
     flexDirection: "row",

@@ -3,6 +3,7 @@ import {
   screen,
   fireEvent,
   within,
+  waitFor,
 } from "expo-router/testing-library";
 import {
   buildBuildingFavorite,
@@ -15,6 +16,7 @@ import {
   type FavoritePlace,
   type FavoritesStorageAdapter,
 } from "../data/favorites";
+import { resetLocalAuthState } from "../data/auth-context";
 import { getAllRooms } from "../data/campus-layout";
 
 jest.mock("../components/FloorMapViewer", () => {
@@ -111,6 +113,7 @@ describe("Favorites Storage & Builder Helpers", () => {
 describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
   beforeEach(() => {
     resetLocalFavoritesStorage();
+    resetLocalAuthState();
   });
 
   it("starts collapsed and expands/collapses cleanly via toggle, handle, and backdrop", () => {
@@ -224,5 +227,67 @@ describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.queryByTestId("favorites-drawer")).toBeNull();
     expect(screen.getByText("✓")).toBeTruthy();
+  });
+
+  it("catches temporary favorites when creating an account, hides them after logout, and returns them upon login", async () => {
+    renderRouter("src/app", { initialUrl: "/" });
+
+    // 1. Add a temporary local favorite while logged out
+    fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
+    fireEvent.press(screen.getByTestId("quick-add-poi:Restrooms"));
+    expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
+    expect(screen.getByText("Temporary Local List")).toBeTruthy();
+
+    // 2. Open account form inside drawer and create an account
+    fireEvent.press(screen.getByTestId("favorites-account-toggle"));
+    fireEvent.press(screen.getByTestId("account-mode-register"));
+    fireEvent.changeText(
+      screen.getByTestId("account-display-name-input"),
+      "Titus",
+    );
+    fireEvent.changeText(
+      screen.getByTestId("account-email-input"),
+      "titus@calvin.edu",
+    );
+    fireEvent.changeText(
+      screen.getByTestId("account-password-input"),
+      "password123",
+    );
+    fireEvent.press(screen.getByTestId("account-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Account Synced · Titus")).toBeTruthy();
+    });
+
+    // Caught guest favorite remains in account list and user adds another while logged in
+    expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
+    fireEvent.press(screen.getByTestId("quick-add-room:HH-211"));
+    expect(screen.getByTestId("favorite-item-room:HH-211")).toBeTruthy();
+
+    // 3. Sign out -> reverts to empty Temporary Local List
+    fireEvent.press(screen.getByTestId("account-logout-button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Temporary Local List")).toBeTruthy();
+      expect(screen.getByTestId("favorites-empty-state")).toBeTruthy();
+    });
+
+    // 4. Sign back in -> saved account favorites list is returned
+    fireEvent.press(screen.getByTestId("favorites-account-toggle"));
+    fireEvent.changeText(
+      screen.getByTestId("account-email-input"),
+      "titus@calvin.edu",
+    );
+    fireEvent.changeText(
+      screen.getByTestId("account-password-input"),
+      "password123",
+    );
+    fireEvent.press(screen.getByTestId("account-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Account Synced · Titus")).toBeTruthy();
+      expect(screen.getByTestId("favorite-item-poi:Restrooms")).toBeTruthy();
+      expect(screen.getByTestId("favorite-item-room:HH-211")).toBeTruthy();
+    });
   });
 });

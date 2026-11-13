@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -52,6 +53,7 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
     () => getFavoritesStorageAdapter().mode,
   );
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const accountIdRef = useRef<string | null | undefined>(undefined);
 
   const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
@@ -74,7 +76,7 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       };
       const next = [nextItem, ...prev];
-      getFavoritesStorageAdapter().save(next);
+      getFavoritesStorageAdapter().save(next, accountIdRef.current);
       return next;
     });
   }, []);
@@ -82,7 +84,7 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
   const removeFavorite = useCallback((id: string) => {
     setFavorites((prev) => {
       const next = prev.filter((item) => item.id !== id);
-      getFavoritesStorageAdapter().save(next);
+      getFavoritesStorageAdapter().save(next, accountIdRef.current);
       return next;
     });
   }, []);
@@ -102,10 +104,11 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
 
   const clearFavorites = useCallback(() => {
     setFavorites([]);
-    getFavoritesStorageAdapter().clear();
+    getFavoritesStorageAdapter().clear(accountIdRef.current);
   }, []);
 
   const reloadFavorites = useCallback((accountId?: string | null) => {
+    accountIdRef.current = accountId;
     const adapter = getFavoritesStorageAdapter();
     setStorageMode(adapter.mode);
     setFavorites(adapter.load(accountId));

@@ -41,6 +41,7 @@ export interface FavoritesStorageAdapter {
 }
 
 const TEMP_LOCAL_STORAGE_KEY = "calvinfinder.temp.favorites.v1";
+const ACCOUNT_STORAGE_KEY_PREFIX = "calvinfinder.account.favorites.v1.";
 
 const POI_ROOM_TYPES = new Set<RoomType>([
   "dining",
@@ -129,6 +130,101 @@ export function createLocalTemporaryFavoritesStorage(): FavoritesStorageAdapter 
           // Ignore removal failures.
         }
       }
+    },
+  };
+}
+
+export type AccountFavoritesStorageOptions = {
+  defaultAccountId?: string | null;
+  initialFavorites?: readonly FavoritePlace[];
+  onSave?: (favorites: readonly FavoritePlace[], accountId: string) => void;
+  onClear?: (accountId: string) => void;
+};
+
+/**
+ * Account-backed storage adapter for Favorites.
+ * Keeps a reactive synchronous per-account cache + localStorage mirror
+ * while forwarding writes to remote account persistence callbacks.
+ */
+export function createAccountFavoritesStorage(
+  options: AccountFavoritesStorageOptions = {},
+): FavoritesStorageAdapter {
+  const accountStore = new Map<string, FavoritePlace[]>();
+
+  const resolveKey = (accountId?: string | null): string =>
+    accountId ?? options.defaultAccountId ?? "default";
+
+  if (options.defaultAccountId && options.initialFavorites) {
+    const initialCopy = [...options.initialFavorites];
+    accountStore.set(options.defaultAccountId, initialCopy);
+    const webStorage = getBrowserLocalStorage();
+    if (webStorage) {
+      try {
+        webStorage.setItem(
+          `${ACCOUNT_STORAGE_KEY_PREFIX}${options.defaultAccountId}`,
+          JSON.stringify(initialCopy),
+        );
+      } catch {
+        // Ignore webStorage write failures.
+      }
+    }
+  }
+
+  return {
+    mode: "account",
+    load(accountId?: string | null): FavoritePlace[] {
+      const key = resolveKey(accountId);
+      const cached = accountStore.get(key);
+      if (cached) {
+        return [...cached];
+      }
+      const webStorage = getBrowserLocalStorage();
+      if (webStorage) {
+        try {
+          const raw = webStorage.getItem(`${ACCOUNT_STORAGE_KEY_PREFIX}${key}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const valid = parsed.filter(isValidFavoritePlace);
+              accountStore.set(key, valid);
+              return [...valid];
+            }
+          }
+        } catch {
+          // Ignore malformed persisted account favorites.
+        }
+      }
+      return [];
+    },
+    save(favorites: readonly FavoritePlace[], accountId?: string | null): void {
+      const key = resolveKey(accountId);
+      const next = [...favorites];
+      accountStore.set(key, next);
+      const webStorage = getBrowserLocalStorage();
+      if (webStorage) {
+        try {
+          webStorage.setItem(
+            `${ACCOUNT_STORAGE_KEY_PREFIX}${key}`,
+            JSON.stringify(next),
+          );
+        } catch {
+          // Ignore webStorage write failures.
+        }
+      }
+      options.onSave?.(next, key);
+    },
+    clear(accountId?: string | null): void {
+      const key = resolveKey(accountId);
+      accountStore.set(key, []);
+      const webStorage = getBrowserLocalStorage();
+      if (webStorage) {
+        try {
+          webStorage.removeItem(`${ACCOUNT_STORAGE_KEY_PREFIX}${key}`);
+        } catch {
+          // Ignore removal failures.
+        }
+      }
+      options.onClear?.(key);
     },
   };
 }

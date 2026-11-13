@@ -26,6 +26,7 @@ import {
 import { getAllRooms, getRoomsOnFloor } from "../data/campus-layout";
 import { CAMPUS_TO_MANIFEST_BUILDINGS } from "../data/campus-places";
 import { FavoritesToggleButton } from "../components/FavoritesDrawer";
+import { UserAvatarButton } from "../components/UserAvatarButton";
 import { useFavorites } from "../data/favorites-context";
 import {
   buildFloorFavorite,
@@ -279,7 +280,10 @@ export default function RoomSearch() {
           </Pressable>
           <Text style={styles.headerTitle}>Room Search</Text>
         </View>
-        <FavoritesToggleButton />
+        <View style={styles.headerRight}>
+          <FavoritesToggleButton />
+          <UserAvatarButton />
+        </View>
       </View>
 
       <View
@@ -572,6 +576,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   headerLeft: {
     flexDirection: "row",

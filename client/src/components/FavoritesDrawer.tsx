@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFavorites } from "../data/favorites-context";
+import { useAuth } from "../data/auth-context";
 import {
   buildBuildingFavorite,
   buildPoiFilterFavorite,
@@ -146,9 +147,39 @@ export default function FavoritesDrawer() {
     clearFavorites,
   } = useFavorites();
 
+  const {
+    user,
+    profile,
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    error: authError,
+    clearError: clearAuthError,
+    login,
+    register,
+    logout,
+  } = useAuth();
+
   const [filter, setFilter] = useState<DrawerFilter>("all");
   const [quickQuery, setQuickQuery] = useState("");
   const [slideAnim] = useState(() => new Animated.Value(0));
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [displayNameInput, setDisplayNameInput] = useState("");
+
+  const handleAuthSubmit = async () => {
+    const trimmedEmail = emailInput.trim();
+    const ok =
+      authMode === "login"
+        ? await login(trimmedEmail, passwordInput)
+        : await register(trimmedEmail, passwordInput, displayNameInput.trim());
+    if (ok) {
+      setPasswordInput("");
+      setAuthMode("login");
+      setShowAuthForm(false);
+    }
+  };
 
   useEffect(() => {
     if (isDrawerOpen) {
@@ -304,31 +335,258 @@ export default function FavoritesDrawer() {
               <Text style={styles.headerCountText}>{favorites.length}</Text>
             </View>
           </View>
-          <Pressable
-            testID="favorites-collapse-button"
-            accessibilityRole="button"
-            accessibilityLabel="Collapse favorites menu"
-            style={({ pressed }) => [
-              styles.collapseButton,
-              pressed && styles.collapseButtonPressed,
-            ]}
-            onPress={closeDrawer}
-          >
-            <Text style={styles.collapseButtonText}>Collapse ›</Text>
-          </Pressable>
+          <View style={styles.headerRightActions}>
+            <Pressable
+              testID="drawer-avatar-button"
+              accessibilityRole="button"
+              accessibilityLabel={
+                isAuthenticated ? "Open account profile" : "Log in to account"
+              }
+              style={({ pressed }) => [
+                styles.drawerAvatarButton,
+                pressed && styles.drawerAvatarButtonPressed,
+              ]}
+              onPress={() => {
+                closeDrawer();
+                if (isAuthenticated) {
+                  router.push("/account");
+                } else {
+                  router.push("/login");
+                }
+              }}
+            >
+              {isAuthenticated ? (
+                <View style={styles.drawerAvatarCircle}>
+                  <Text style={styles.drawerAvatarInitials}>
+                    {((profile?.display_name || user?.email || "U")[0]).toUpperCase()}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.drawerGuestCircle}>
+                  <Text style={styles.drawerGuestIcon}>👤</Text>
+                </View>
+              )}
+            </Pressable>
+            <Pressable
+              testID="favorites-collapse-button"
+              accessibilityRole="button"
+              accessibilityLabel="Collapse favorites menu"
+              style={({ pressed }) => [
+                styles.collapseButton,
+                pressed && styles.collapseButtonPressed,
+              ]}
+              onPress={closeDrawer}
+            >
+              <Text style={styles.collapseButtonText}>Collapse ›</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.storageNotice} testID="favorites-storage-notice">
-          <Text style={styles.storageNoticeTitle}>
-            {storageMode === "local-temp"
-              ? "Temporary Local List"
-              : "Account Synced"}
-          </Text>
-          <Text style={styles.storageNoticeBody}>
-            {storageMode === "local-temp"
-              ? "Saved locally on this device for testing. Will sync with your account once login is added."
-              : "Synced to your logged-in account."}
-          </Text>
+          <View style={styles.storageNoticeTopRow}>
+            <View style={styles.storageNoticeTextCol}>
+              <Text style={styles.storageNoticeTitle}>
+                {isAuthenticated
+                  ? `Account Synced · ${profile?.display_name || user?.email}`
+                  : storageMode === "account"
+                    ? "Account Synced"
+                    : "Temporary Local List"}
+              </Text>
+              <Text style={styles.storageNoticeBody}>
+                {isAuthenticated
+                  ? `Signed in as ${user?.email}. Favorites are stored and returned for your account.`
+                  : storageMode === "account"
+                    ? "Synced to your logged-in account."
+                    : "Saved locally on this device. Sign in to catch & save your favorites to your account."}
+              </Text>
+            </View>
+            {isAuthenticated ? (
+              <View style={styles.accountActionRow}>
+                <Pressable
+                  testID="account-profile-button"
+                  accessibilityRole="button"
+                  accessibilityLabel="View profile"
+                  style={({ pressed }) => [
+                    styles.accountSmallButton,
+                    pressed && styles.accountSmallButtonPressed,
+                  ]}
+                  onPress={() => {
+                    closeDrawer();
+                    router.push("/account");
+                  }}
+                >
+                  <Text style={styles.accountSmallButtonText}>Profile</Text>
+                </Pressable>
+                <Pressable
+                  testID="account-logout-button"
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign out of account"
+                  style={({ pressed }) => [
+                    styles.accountSmallButton,
+                    pressed && styles.accountSmallButtonPressed,
+                  ]}
+                  onPress={() => {
+                    setAuthMode("login");
+                    void logout();
+                  }}
+                >
+                  <Text style={styles.accountSmallButtonText}>Sign Out</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.accountActionRow}>
+                <Pressable
+                  testID="drawer-login-page-button"
+                  accessibilityRole="button"
+                  accessibilityLabel="Go to login page"
+                  style={({ pressed }) => [
+                    styles.accountSmallButton,
+                    pressed && styles.accountSmallButtonPressed,
+                  ]}
+                  onPress={() => {
+                    closeDrawer();
+                    router.push("/login");
+                  }}
+                >
+                  <Text style={styles.accountSmallButtonText}>Login Page ›</Text>
+                </Pressable>
+                <Pressable
+                  testID="favorites-account-toggle"
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showAuthForm ? "Hide account form" : "Open account sign in"
+                  }
+                  style={({ pressed }) => [
+                    styles.accountPrimarySmallButton,
+                    pressed && styles.accountPrimarySmallButtonPressed,
+                  ]}
+                  onPress={() => {
+                    clearAuthError();
+                    setShowAuthForm((prev) => !prev);
+                  }}
+                >
+                  <Text style={styles.accountPrimarySmallButtonText}>
+                    {showAuthForm ? "Close" : "Sign In"}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+
+          {!isAuthenticated && showAuthForm && (
+            <View style={styles.authForm} testID="favorites-account-form">
+              <View style={styles.authModeRow}>
+                <Pressable
+                  testID="account-mode-login"
+                  accessibilityRole="button"
+                  style={[
+                    styles.authModeChip,
+                    authMode === "login" && styles.authModeChipActive,
+                  ]}
+                  onPress={() => {
+                    clearAuthError();
+                    setAuthMode("login");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.authModeChipText,
+                      authMode === "login" && styles.authModeChipTextActive,
+                    ]}
+                  >
+                    Sign In
+                  </Text>
+                </Pressable>
+                <Pressable
+                  testID="account-mode-register"
+                  accessibilityRole="button"
+                  style={[
+                    styles.authModeChip,
+                    authMode === "register" && styles.authModeChipActive,
+                  ]}
+                  onPress={() => {
+                    clearAuthError();
+                    setAuthMode("register");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.authModeChipText,
+                      authMode === "register" && styles.authModeChipTextActive,
+                    ]}
+                  >
+                    Create Account
+                  </Text>
+                </Pressable>
+              </View>
+
+              {authMode === "register" && (
+                <TextInput
+                  testID="account-display-name-input"
+                  accessibilityLabel="Display name"
+                  style={styles.authInput}
+                  value={displayNameInput}
+                  onChangeText={setDisplayNameInput}
+                  placeholder="Display name"
+                  placeholderTextColor={SUBTLE}
+                />
+              )}
+
+              <TextInput
+                testID="account-email-input"
+                accessibilityLabel="Account email"
+                style={styles.authInput}
+                value={emailInput}
+                onChangeText={setEmailInput}
+                placeholder="Email address"
+                placeholderTextColor={SUBTLE}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoCorrect={false}
+              />
+
+              <TextInput
+                testID="account-password-input"
+                accessibilityLabel="Account password"
+                style={styles.authInput}
+                value={passwordInput}
+                onChangeText={setPasswordInput}
+                placeholder="Password (min 6 characters)"
+                placeholderTextColor={SUBTLE}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              {authError && (
+                <Text style={styles.authErrorText} testID="account-auth-error">
+                  {authError}
+                </Text>
+              )}
+
+              <Pressable
+                testID="account-submit-button"
+                accessibilityRole="button"
+                disabled={isAuthLoading}
+                style={({ pressed }) => [
+                  styles.authSubmitButton,
+                  pressed && styles.authSubmitButtonPressed,
+                  isAuthLoading && styles.authSubmitButtonDisabled,
+                ]}
+                onPress={() => {
+                  void handleAuthSubmit();
+                }}
+              >
+                <Text style={styles.authSubmitButtonText}>
+                  {isAuthLoading
+                    ? "Working..."
+                    : authMode === "login"
+                      ? "Sign In & Sync Favorites"
+                      : "Create Account & Save Favorites"}
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {favorites.length > 0 && (
@@ -516,7 +774,11 @@ export default function FavoritesDrawer() {
               ]}
               onPress={clearFavorites}
             >
-              <Text style={styles.clearButtonText}>Clear Temporary List</Text>
+              <Text style={styles.clearButtonText}>
+                {isAuthenticated || storageMode === "account"
+                  ? "Clear Account Favorites"
+                  : "Clear Temporary List"}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -652,6 +914,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  drawerAvatarButton: {
+    padding: 2,
+    borderRadius: 999,
+  },
+  drawerAvatarButtonPressed: {
+    opacity: 0.75,
+  },
+  drawerAvatarCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  drawerAvatarInitials: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 11,
+    color: "#FFFFFF",
+  },
+  drawerGuestCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  drawerGuestIcon: {
+    fontSize: 12,
+  },
   drawerStar: {
     fontSize: 17,
     color: GOLD,
@@ -692,11 +992,25 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 10,
+  },
+  storageNoticeTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  accountActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  storageNoticeTextCol: {
+    flex: 1,
   },
   storageNoticeTitle: {
     fontFamily: "Inter_600SemiBold",
@@ -709,6 +1023,102 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: SUBTLE,
     marginTop: 2,
+  },
+  accountPrimarySmallButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: ACCENT,
+  },
+  accountPrimarySmallButtonPressed: {
+    opacity: 0.85,
+  },
+  accountPrimarySmallButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: "#FFFFFF",
+  },
+  accountSmallButton: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  accountSmallButtonPressed: {
+    backgroundColor: "#F1F5F9",
+  },
+  accountSmallButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    color: INK,
+  },
+  authForm: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    gap: 7,
+  },
+  authModeRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  authModeChip: {
+    flex: 1,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+  },
+  authModeChipActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: ACCENT,
+  },
+  authModeChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11.5,
+    color: SUBTLE,
+  },
+  authModeChipTextActive: {
+    fontFamily: "Inter_600SemiBold",
+    color: ACCENT,
+  },
+  authInput: {
+    height: 36,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#FFFFFF",
+    fontFamily: "Inter_400Regular",
+    fontSize: 12.5,
+    color: INK,
+  },
+  authErrorText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11.5,
+    color: "#DC2626",
+  },
+  authSubmitButton: {
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: ACCENT,
+    alignItems: "center",
+  },
+  authSubmitButtonPressed: {
+    opacity: 0.9,
+  },
+  authSubmitButtonDisabled: {
+    opacity: 0.6,
+  },
+  authSubmitButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    color: "#FFFFFF",
   },
   filterRow: {
     flexDirection: "row",
