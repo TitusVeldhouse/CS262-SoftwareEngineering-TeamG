@@ -9,6 +9,7 @@ supabase/
   migrations/20261112224954_initial_schema.sql   tables, view, search function, security rules
   seed.sql                                 starting data (GENERATED; do not edit by hand)
   scripts/generate-seed.mjs                builds seed.sql from the client/server data files
+  tests/database/*.test.sql                pgTAP tests run by `npx supabase test db`
 ```
 
 ## Running the database locally
@@ -59,6 +60,29 @@ enum. To do that, write a **new** migration (`npx supabase migration new add_roo
 containing `alter type public.room_type add value '...';`), then update the check in
 `generate-seed.mjs` that reads the enum. Never edit a migration that has already been
 applied to the hosted project.
+
+## Testing the database
+
+`tests/database/` holds [pgTAP](https://pgtap.org/) tests that check the database from
+the app's point of view. They switch to the same roles the Supabase client uses: `anon`
+for a signed-out user and `authenticated` with a user id for a signed-in user. Each file
+runs in a transaction that is rolled back, so the tests leave no data behind.
+
+```bash
+npx supabase start
+npx supabase db reset   # the tests read rows from seed.sql
+npx supabase test db    # runs every file in supabase/tests/
+```
+
+| File | What it checks |
+| --- | --- |
+| `01_schema.test.sql` | The tables, columns, enums, view, and function the client relies on exist with the right shape. RLS is on for every table. The client roles can call search. |
+| `02_public_campus_data.test.sql` | Signed-out and signed-in users can read campus data (including joined building → floor → room reads) but cannot add, change, or delete it. |
+| `03_search.test.sql` | `search_locations` finds buildings, rooms, and POIs. It ignores case and surrounding spaces, matches aliases, orders results, returns nothing for blank input, treats `%` literally, and caps results at 50. |
+| `04_profiles_and_favorites.test.sql` | Sign-up creates a profile. Users can edit only their own profile. Favorites can be added, listed, and removed only by their owner. The favorite rules hold (one target, no duplicates, the target must exist). Deleting a user removes their data. |
+
+When you change the schema, add or update a test in the matching file. If you change
+seed data that a test names (for example Hiemenga Hall or room `HH-211`), update the test too.
 
 ## Tables
 
