@@ -12,6 +12,8 @@ export type PanLimits = {
   maxY: number;
 };
 
+// Keep initial fitting and gesture zoom limits in one place so the viewer
+// controls and the worklet-based pinch gesture use the same bounds.
 export const MAP_PADDING = 28;
 export const MIN_MAP_SCALE = 0.5;
 export const MAX_MAP_SCALE = 5;
@@ -64,6 +66,8 @@ export function calculatePanLimitsFromDimensions(
     margin ??
     Math.max(40, Math.min(viewportHeight * 0.12, scaledH * 0.1, DEFAULT_PAN_MARGIN));
 
+  // Layout can be measured before its image or viewport has a nonzero size.
+  // Keep the result finite and allow a small fallback pan until dimensions arrive.
   if (scaledW === 0 || scaledH === 0 || viewportWidth === 0 || viewportHeight === 0) {
     const fallbackMargin = margin ?? DEFAULT_PAN_MARGIN;
     return {
@@ -111,9 +115,12 @@ export function calculateMapFrame(
   viewportHeight: number,
   customPadding?: number,
 ): MapFrame {
+  // Preserve the image aspect ratio while fitting it inside the padded viewport.
   const padding = customPadding ?? MAP_PADDING;
   const availableWidth = Math.max(0, viewportWidth - padding * 2);
   const availableHeight = Math.max(0, viewportHeight - padding * 2);
+  // Zero-sized image measurements can occur during layout; use a zero scale
+  // rather than dividing by zero, then center the resulting empty frame.
   const widthScale = imageWidth > 0 ? availableWidth / imageWidth : 0;
   const heightScale = imageHeight > 0 ? availableHeight / imageHeight : 0;
   const fitScale =

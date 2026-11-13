@@ -9,11 +9,15 @@ app.use(express.json());
 //Versions included in the API
 // GET all buildings
 app.get('/api/v1/buildings', (req, res) => {
+    // The response contains only each building's identity and parking status.
+    // Array.map supplies (element, index, array), not separate building fields.
     res.json(buildings.map((id, name, isParkingLot) => ({id, name, isParkingLot})));
 });
 
 // GET one building including its rooms and floors
 app.get('/api/v1/buildings/:id', (req, res) => { const id = Number(req.params.id);
+    // Reject malformed IDs before looking them up so bad input is distinct
+    // from a well-formed ID that simply does not exist.
     if (!Number.isInteger(id)) return res.status(400).json({error: 'ID must be an integer'});
     const building = buildings.find(b => b.id === id);
     if (!building) {
@@ -25,6 +29,7 @@ app.get('/api/v1/buildings/:id', (req, res) => { const id = Number(req.params.id
 // GET points of interst and filter
 app.get('/api/v1/points-of-interest', (req, res) => {
   const { type } = req.query;
+  // Omitting type returns the full collection; supplying it applies exact matching.
   res.json(type?pointsOfInterest.filter(p => p.type === type) : pointsOfInterest);
 });
 
@@ -53,6 +58,8 @@ app.get('/api/v1/search', (req, res) => {
     return res.status(400).json({ error: 'Query parameter q is required' });
   }
   const term = q.trim().toLowerCase();
+  // Normalize both sides once so all three result categories use the same
+  // case-insensitive substring semantics.
   const matches = (text) => text.toLowerCase().includes(term);
 
   const buildingResults = buildings
@@ -80,6 +87,7 @@ app.use((req, res) => {
     res.status(404).json({error: 'Route not found'});
 });
 app.use((err, req, res, next) => {
+    // Keep details in server logs; clients receive a stable, non-sensitive error.
     console.error(err.stack);
     res.status(500).json({error: 'Internal Server Error'});
 });

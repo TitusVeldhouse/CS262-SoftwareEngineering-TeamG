@@ -1,3 +1,5 @@
+// In-memory catalog backing the API routes; each building owns its floor/room
+// list, while points of interest reference a building ID and floor separately.
 const buildings = [
     {
         id: 1,
