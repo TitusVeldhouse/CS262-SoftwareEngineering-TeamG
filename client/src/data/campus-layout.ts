@@ -270,10 +270,10 @@ const PRELOADED_ROOMS: Array<{
   },
   {
     building: "Hekman Library",
-    floor: "Level 1",
+    floor: "Level 2",
     room: {
       id: "HEK-CAFE",
-      roomNumber: "105",
+      roomNumber: "205",
       name: "Peet's Coffee & Study Lounge",
       type: "dining",
       aliases: ["Coffee", "Cafe"],

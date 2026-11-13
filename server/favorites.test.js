@@ -68,6 +68,29 @@ describe('Server-Side Favorites List Ingestion & Management', () => {
       expect(target.poi_id).toBeNull();
     });
 
+    it("dynamically transfigures Peet's Coffee to Hekman Library Level 2", () => {
+      const target = resolveFavoriteTarget({
+        id: 'room:HEK-CAFE',
+        roomId: 'HEK-CAFE',
+      });
+      expect(target.room_id).toBeGreaterThan(0);
+
+      const projected = projectFavoriteRow({
+        id: 99,
+        user_id: 'test-user',
+        building_id: null,
+        room_id: target.room_id,
+        poi_id: null,
+        floor_label: null,
+        created_at: '2026-11-13T10:00:00.000Z',
+      });
+
+      expect(projected.place.building).toBe('Hekman Library');
+      expect(projected.place.floor).toBe('Level 2');
+      expect(projected.place.roomNumber).toBe('205');
+      expect(projected.place.subtitle).toContain('Hekman Library · Level 2');
+    });
+
     it('resolves POI targets to poi_id', () => {
       const target = resolveFavoriteTarget({
         id: 'poi:Restrooms',

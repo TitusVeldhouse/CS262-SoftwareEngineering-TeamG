@@ -55,7 +55,7 @@ describe("Favorites Storage & Builder Helpers", () => {
     expect(roomFav.kind).toBe("room");
     expect(roomFav.roomId).toBe("HH-211");
 
-    const poiRoomFav = buildRoomFavorite(cafe, "Hekman Library", "Level 1");
+    const poiRoomFav = buildRoomFavorite(cafe, "Hekman Library", "Level 2");
     expect(poiRoomFav.id).toBe("room:HEK-CAFE");
     expect(poiRoomFav.kind).toBe("poi");
 

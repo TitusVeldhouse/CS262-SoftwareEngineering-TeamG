@@ -209,7 +209,7 @@ const CLIENT_ROOMS_SEED = [
   { buildingId: 1, level: 3, clientRoomId: 'SB-303', roomNumber: '303', name: 'Room 303', type: 'classroom', aliases: ['SB 303'], x: 380, y: 400 },
 
   { buildingId: 2, level: 1, clientRoomId: 'HEK-CIRC', roomNumber: '101', name: 'Circulation Desk', type: 'facility', aliases: ['Front Desk', 'Library Help', 'HL 101'], x: 500, y: 400 },
-  { buildingId: 2, level: 1, clientRoomId: 'HEK-CAFE', roomNumber: '105', name: "Peet's Coffee & Study Lounge", type: 'dining', aliases: ['Coffee', 'Cafe'], x: 350, y: 420 },
+  { buildingId: 2, level: 2, clientRoomId: 'HEK-CAFE', roomNumber: '205', name: "Peet's Coffee & Study Lounge", type: 'dining', aliases: ['Coffee', 'Cafe'], x: 350, y: 420 },
   { buildingId: 2, level: 2, clientRoomId: 'HEK-201', roomNumber: '201', name: 'Group Study Room 201', type: 'study', aliases: ['HL 201'], x: 560, y: 390 },
   { buildingId: 2, level: 4, clientRoomId: 'HEK-CAYVAN', roomNumber: '401', name: 'Cayvan Media Center', type: 'study', aliases: ['Media Library', 'Audio Center', 'HL 401'], x: 520, y: 380 },
 
