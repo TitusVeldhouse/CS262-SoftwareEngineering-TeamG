@@ -11,13 +11,12 @@ jest.mock("../components/FloorMapViewer", () => {
 });
 
 describe("Campus map home route", () => {
-  it("renders the campus map at / instead of the obsolete welcome screen", async () => {
+  it("renders the campus map at /", async () => {
     await renderRouter("src/app", { initialUrl: "/" });
 
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
     expect(screen.queryByTestId("landing-screen")).toBeNull();
-    expect(screen.queryByTestId("get-started-button")).toBeNull();
     expect(screen.queryByTestId("back-button")).toBeNull();
   });
 

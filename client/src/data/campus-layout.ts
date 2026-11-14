@@ -7,7 +7,7 @@
 // 3. Different buildings: backtrack all the way up to the Campus Master Plan (outdoor walkways).
 
 import { FLOOR_PLANS } from "./floorplan-manifest";
-import { CAMPUS_TO_MANIFEST_BUILDINGS } from "../app/finder";
+import { CAMPUS_TO_MANIFEST_BUILDINGS } from "./campus-places";
 
 export type MapPoint = readonly [number, number];
 
@@ -270,10 +270,10 @@ const PRELOADED_ROOMS: Array<{
   },
   {
     building: "Hekman Library",
-    floor: "Level 1",
+    floor: "Level 2",
     room: {
       id: "HEK-CAFE",
-      roomNumber: "105",
+      roomNumber: "205",
       name: "Peet's Coffee & Study Lounge",
       type: "dining",
       aliases: ["Coffee", "Cafe"],

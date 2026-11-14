@@ -157,11 +157,13 @@ describe("Room search screen", () => {
     },
   );
 
-  it("navigates directly to the campus map on back button press", async () => {
-    await renderRouter("src/app", { initialUrl: "/room-search" });
+  it("returns to the map with the selected building when deep-linked", async () => {
+    await renderRouter("src/app", { initialUrl: "/room-search?building=Hiemenga%20Hall" });
 
     await fireEvent.press(screen.getByTestId("room-search-back-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
+    expect(screen.getByTestId("result-card")).toBeTruthy();
+    expect(screen.getAllByText("Hiemenga Hall").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("room-search-screen")).toBeNull();
   });
 });
