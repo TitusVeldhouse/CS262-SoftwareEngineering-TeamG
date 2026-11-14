@@ -18,7 +18,20 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
-
+import {
+  LOCATIONS,
+  CAMPUS_TO_MANIFEST_BUILDINGS,
+  POINTS_OF_INTEREST,
+  type LocationName,
+  type PointOfInterest,
+} from "../data/campus-places";
+import { useFavorites } from "../data/favorites-context";
+import {
+  buildBuildingFavorite,
+  buildPoiFilterFavorite,
+} from "../data/favorites";
+import { FavoritesToggleButton } from "../components/FavoritesDrawer";
+import { UserAvatarButton } from "../components/UserAvatarButton";
 import {
   getBuildings,
   getPointsOfInterest,
@@ -26,13 +39,14 @@ import {
   type ApiPointOfInterest,
 } from "../services/api";
 
+export { LOCATIONS, CAMPUS_TO_MANIFEST_BUILDINGS, POINTS_OF_INTEREST };
+
 // Shared color palette for this screen.
 const ACCENT = "#208AEF";
 const INK = "#101828";
 const SUBTLE = "#5B6472";
 const CARD_BG = "#FFFFFF";
 const BORDER = "#E6EAF0";
-const MAP_BG = "#F8FAFC";
 const CAMPUS_MAP_IMAGE = require("../../assets/images/campus-map.png");
 
 // Dimensions for the scrollable campus blueprint canvas (preserves 2479:1944 aspect ratio)
@@ -41,64 +55,16 @@ export const BASE_MAP_HEIGHT = Math.round(1000 * (1944 / 2479)); // 784
 export const MAP_CANVAS_WIDTH = BASE_MAP_WIDTH;
 export const MAP_CANVAS_HEIGHT = BASE_MAP_HEIGHT;
 
-// Mocked campus locations. `top`/`left` are percentage offsets used to
-// position each pin over the (also mocked) map background.
-export const LOCATIONS = [
-  { name: "Hekman Library", top: "62.3%", left: "31.2%" },
-  { name: "Covenant Fine Arts Center", top: "58.1%", left: "37.4%" },
-  { name: "Spoelhof Center", top: "63.3%", left: "24.2%" },
-  { name: "Fieldhouse", top: "39.7%", left: "23.8%" },
-  { name: "Hiemenga Hall", top: "64.1%", left: "28.3%" },
-  { name: "Devos Communication Building", top: "61.8%", left: "46.6%" },
-  { name: "Science Building", top: "54.6%", left: "25.7%" },
-  { name: "DeVries Hall", top: "55.0%", left: "23.5%" },
-  { name: "North Hall", top: "51.8%", left: "26.6%" },
-  { name: "Chapel", top: "66.5%", left: "27.4%" },
-  { name: "Commons Annex", top: "58.7%", left: "32.5%" },
-  { name: "Commons", top: "56.5%", left: "32.8%" },
-] as const;
-
-// Maps campus locations to their catalog names in room-search-data.ts / floorplan-manifest.ts
-export const CAMPUS_TO_MANIFEST_BUILDINGS: Record<string, string> = {
-  "Hekman Library": "Hekman Library",
-  "Covenant Fine Arts Center": "Covenant Fine Arts Center",
-  "Spoelhof Center": "Spoelhof University Center",
-  "Fieldhouse": "Spoelhof Fieldhouse",
-  "Hiemenga Hall": "Hiemenga Hall",
-  "Devos Communication Building": "Devos Communication Center",
-  "Science Building": "Science Building",
-  "DeVries Hall": "Devries Hall",
-  "North Hall": "North Hall",
-  "Chapel": "Chapel",
-  "Commons Annex": "Commons Annex",
-  "Commons": "Commons",
-};
-
-// Derives a union of literal location names ("Hekman Library" | ...) from
-
-// the LOCATIONS data itself, so the type always stays in sync with the data.
-type LocationName = (typeof LOCATIONS)[number]["name"];
-
-// Mocked category filters shown in the horizontal checklist above the map.
-export const POINTS_OF_INTEREST = [
-  "Restrooms",
-  "Printers",
-  "Water Fountains",
-  "Vending Machines",
-] as const;
-
-type PointOfInterest = (typeof POINTS_OF_INTEREST)[number];
-
 const POI_API_TYPES: Record<PointOfInterest, string> = {
   Restrooms: "restroom",
   Printers: "printer",
   "Water Fountains": "water fountain",
   "Vending Machines": "vending machine",
 };
-
 export default function Finder() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ building?: string }>();
+  const params = useLocalSearchParams<{ building?: string; poi?: string }>();
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   // Resolve matching location name if provided via route params
   const resolveBuilding = (buildingParam?: string): LocationName | null => {
@@ -112,7 +78,16 @@ export default function Finder() {
     return match ? (match.name as LocationName) : null;
   };
 
+  const resolvePoi = (poiParam?: string): PointOfInterest | null => {
+    if (!poiParam) return null;
+    const match = POINTS_OF_INTEREST.find(
+      (p) => p.toLowerCase() === poiParam.toLowerCase(),
+    );
+    return match ?? null;
+  };
+
   const initialSelection = resolveBuilding(params.building) ?? LOCATIONS[0].name;
+  const initialPoi = resolvePoi(params.poi);
 
   // Which location is highlighted on the map / shown in the result card.
   const [selected, setSelected] = useState<LocationName>(initialSelection);
@@ -154,14 +129,41 @@ export default function Finder() {
     verticalScrollRef.current?.scrollTo({ y: scrollY, animated });
   };
 
-  useEffect(() => {
+  // Whether the location dropdown list is expanded.
+  const [open, setOpen] = useState(false);
+  // Which POI checkboxes are currently checked. A Set makes toggling and
+  // membership checks (`.has`) simple, since order doesn't matter here.
+  const [activePois, setActivePois] = useState<Set<PointOfInterest>>(() =>
+    initialPoi ? new Set([initialPoi]) : new Set(),
+  );
+  const [prevParamBuilding, setPrevParamBuilding] = useState(params.building);
+  const [prevParamPoi, setPrevParamPoi] = useState(params.poi);
+
+  if (params.building !== prevParamBuilding) {
+    setPrevParamBuilding(params.building);
     const matched = resolveBuilding(params.building);
     if (matched) {
       // Route parameters control this selection when navigating from a floor plan.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(matched);
+    }
+  }
+
+  if (params.poi !== prevParamPoi) {
+    setPrevParamPoi(params.poi);
+    const matchedPoi = resolvePoi(params.poi);
+    if (matchedPoi && !activePois.has(matchedPoi)) {
+      const next = new Set(activePois);
+      next.add(matchedPoi);
+      setActivePois(next);
+    }
+  }
+
+  useEffect(() => {
+    const matched = resolveBuilding(params.building);
+    if (matched) {
       centerOnLocation(matched, true, mapScale);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.building]);
 
   // Center on quad/initial building on mount
@@ -170,14 +172,8 @@ export default function Finder() {
       centerOnLocation(initialSelection, false, 1.0);
     }, 150);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // Whether the location dropdown list is expanded.
-  const [open, setOpen] = useState(false);
-  // Which POI checkboxes are currently checked. A Set makes toggling and
-  // membership checks (`.has`) simple, since order doesn't matter here.
-  const [activePois, setActivePois] = useState<Set<PointOfInterest>>(
-    () => new Set(),
-  );
 
   // Data retrieved from the Express backend
   const [apiBuildings, setApiBuildings] = useState<ApiBuildingSummary[]>([]);
@@ -302,24 +298,30 @@ export default function Finder() {
 
       {/* Header: back button returns to the landing screen. */}
       <View style={styles.header}>
-        <Pressable
-          testID="back-button"
-          style={styles.backButton}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/");
-            }
-          }}
-        >
-          <Text style={styles.backButtonText}>{"‹"}</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Calvin Finder</Text>
+        <View style={styles.headerLeft}>
+          <Pressable
+            testID="back-button"
+            style={styles.backButton}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/");
+              }
+            }}
+          >
+            <Text style={styles.backButtonText}>{"‹"}</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>Calvin Finder</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <FavoritesToggleButton />
+          <UserAvatarButton />
+        </View>
       </View>
 
       {/* Horizontally scrollable checklist: tapping a POI toggles its
-          checkbox via togglePoi. */}
+          checkbox via togglePoi; tapping its star saves it to Favorites. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -328,20 +330,44 @@ export default function Finder() {
       >
         {POINTS_OF_INTEREST.map((poi) => {
           const isActive = activePois.has(poi);
+          const poiFavorite = buildPoiFilterFavorite(poi);
+          const isPoiSaved = isFavorite(poiFavorite.id);
           return (
-            <Pressable
-              key={poi}
-              testID={`poi-${poi}`}
-              style={styles.poiItem}
-              onPress={() => togglePoi(poi)}
-            >
-              <View style={[styles.checkbox, isActive && styles.checkboxActive]}>
-                {isActive && <Text style={styles.checkboxMark}>✓</Text>}
-              </View>
-              <Text style={styles.poiLabel}>
-                {apiLoading || apiError ? poi : `${poi} (${getPoiCount(poi)})`}
-              </Text>
-            </Pressable>
+            <View key={poi} style={styles.poiChipGroup}>
+              <Pressable
+                testID={`poi-${poi}`}
+                style={styles.poiItem}
+                onPress={() => togglePoi(poi)}
+              >
+                <View style={[styles.checkbox, isActive && styles.checkboxActive]}>
+                  {isActive && <Text style={styles.checkboxMark}>✓</Text>}
+                </View>
+                <Text style={styles.poiLabel}>
+                  {apiLoading || apiError ? poi : `${poi} (${getPoiCount(poi)})`}
+                </Text>
+              </Pressable>
+              <Pressable
+                testID={`favorite-poi-${poi}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isPoiSaved }}
+                accessibilityLabel={
+                  isPoiSaved
+                    ? `Remove ${poi} from favorites`
+                    : `Save ${poi} to favorites`
+                }
+                style={styles.poiFavoriteButton}
+                onPress={() => toggleFavorite(poiFavorite)}
+              >
+                <Text
+                  style={[
+                    styles.poiFavoriteStar,
+                    isPoiSaved && styles.starActive,
+                  ]}
+                >
+                  {isPoiSaved ? "★" : "☆"}
+                </Text>
+              </Pressable>
+            </View>
           );
         })}
       </ScrollView>
@@ -545,27 +571,63 @@ export default function Finder() {
               <Text style={styles.resultTitle}>{activeLocation.name}</Text>
               <Text style={styles.resultSubtitle}>{apiStatusText}</Text>
             </View>
-            {CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name] && (
-              <Pressable
-                testID="enter-building-button"
-                accessibilityRole="button"
-                accessibilityLabel={`View ${activeLocation.name} Floor Plan`}
-                style={({ pressed }) => [
-                  styles.enterBuildingButton,
-                  pressed && styles.enterBuildingButtonPressed,
-                ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/room-search",
-                    params: {
-                      building: CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name],
-                    },
-                  })
-                }
-              >
-                <Text style={styles.enterBuildingButtonText}>View Floor Plan ›</Text>
-              </Pressable>
-            )}
+            <View style={styles.resultCardActions}>
+              {(() => {
+                const buildingFav = buildBuildingFavorite(
+                  activeLocation.name,
+                  CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name],
+                );
+                const saved = isFavorite(buildingFav.id);
+                return (
+                  <Pressable
+                    testID="favorite-building-button"
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: saved }}
+                    accessibilityLabel={
+                      saved
+                        ? `Remove ${activeLocation.name} from favorites`
+                        : `Save ${activeLocation.name} to favorites`
+                    }
+                    style={({ pressed }) => [
+                      styles.favoriteBuildingButton,
+                      saved && styles.favoriteBuildingButtonSaved,
+                      pressed && styles.enterBuildingButtonPressed,
+                    ]}
+                    onPress={() => toggleFavorite(buildingFav)}
+                  >
+                    <Text
+                      style={[
+                        styles.favoriteBuildingStar,
+                        saved && styles.starActive,
+                      ]}
+                    >
+                      {saved ? "★" : "☆"}
+                    </Text>
+                  </Pressable>
+                );
+              })()}
+              {CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name] && (
+                <Pressable
+                  testID="enter-building-button"
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${activeLocation.name} Floor Plan`}
+                  style={({ pressed }) => [
+                    styles.enterBuildingButton,
+                    pressed && styles.enterBuildingButtonPressed,
+                  ]}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/room-search",
+                      params: {
+                        building: CAMPUS_TO_MANIFEST_BUILDINGS[activeLocation.name],
+                      },
+                    })
+                  }
+                >
+                  <Text style={styles.enterBuildingButtonText}>View Floor Plan ›</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
       </View>
@@ -581,12 +643,22 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingTop: 56,
     paddingBottom: 16,
     paddingHorizontal: 20,
     backgroundColor: CARD_BG,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   backButton: {
     marginRight: 12,
@@ -614,12 +686,28 @@ const styles = StyleSheet.create({
   poiNavContent: {
     paddingHorizontal: 20,
     paddingVertical: 8,
-    gap: 20,
+    gap: 16,
     alignItems: "center",
+  },
+  poiChipGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   poiItem: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  poiFavoriteButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  poiFavoriteStar: {
+    fontSize: 13,
+    color: SUBTLE,
+  },
+  starActive: {
+    color: "#D97706",
   },
   checkbox: {
     width: 12,
@@ -901,6 +989,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: SUBTLE,
     marginTop: 2,
+  },
+  resultCardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  favoriteBuildingButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  favoriteBuildingButtonSaved: {
+    borderColor: "#FCD34D",
+    backgroundColor: "#FEF3C7",
+  },
+  favoriteBuildingStar: {
+    fontSize: 18,
+    color: SUBTLE,
   },
   enterBuildingButton: {
     backgroundColor: ACCENT,
