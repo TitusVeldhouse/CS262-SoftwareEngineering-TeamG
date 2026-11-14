@@ -257,6 +257,18 @@ export default function RoomSearch() {
     setShowResults(false);
   };
 
+  const returnToCampusMap = () => {
+    if (selectedBuilding) {
+      router.dismissTo({
+        pathname: "/",
+        params: { building: selectedBuilding.name },
+      });
+      return;
+    }
+
+    router.dismissTo("/");
+  };
+
   const renderBuilding = (building: CampusBuilding) => (
     <Pressable
       key={building.name}
@@ -281,7 +293,13 @@ export default function RoomSearch() {
 
   return (
     <View style={styles.container} testID="room-search-screen">
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+          // A stack pop reverses this so the floor plan slides right on return.
+          animation: "slide_from_right",
+        }}
+      />
 
       <View style={styles.header}>
         <Pressable
@@ -289,13 +307,7 @@ export default function RoomSearch() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={styles.backButton}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/");
-            }
-          }}
+          onPress={returnToCampusMap}
         >
           <Text style={styles.backButtonText}>‹</Text>
         </Pressable>
@@ -383,12 +395,7 @@ export default function RoomSearch() {
                   styles.exitToCampusButton,
                   pressed && styles.exitToCampusButtonPressed,
                 ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/finder",
-                    params: { building: selectedBuilding.name },
-                  })
-                }
+                onPress={returnToCampusMap}
               >
                 <Text style={styles.exitToCampusButtonIcon}>↗</Text>
                 <Text style={styles.exitToCampusButtonText}>Exit to Campus Map</Text>

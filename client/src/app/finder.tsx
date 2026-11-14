@@ -298,23 +298,13 @@ export default function Finder() {
   return (
     <View style={styles.container} testID="finder-screen">
       {/* Hide the default expo-router header; this screen has its own. */}
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
 
-      {/* Header: back button returns to the landing screen. */}
       <View style={styles.header}>
-        <Pressable
-          testID="back-button"
-          style={styles.backButton}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/");
-            }
-          }}
-        >
-          <Text style={styles.backButtonText}>{"‹"}</Text>
-        </Pressable>
         <Text style={styles.headerTitle}>Calvin Finder</Text>
       </View>
 
@@ -587,17 +577,6 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
-  },
-  backButton: {
-    marginRight: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-  },
-  backButtonText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 26,
-    color: INK,
-    lineHeight: 26,
   },
   headerTitle: {
     fontFamily: "Inter_700Bold",
