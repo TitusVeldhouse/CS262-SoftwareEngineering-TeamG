@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   gestureSurface: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: "hidden",
   },
   mapSurface: {

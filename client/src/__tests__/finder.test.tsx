@@ -120,13 +120,13 @@ describe("Finder screen - Campus Map Rendering & Blueprint", () => {
     expect(mapImage).toBeTruthy();
   });
     
-  it("recalibrates viewport centering on map-container layout", () => {
-    renderRouter("src/app", { initialUrl: "/finder" });
+  it("recalibrates viewport centering on map-container layout", async () => {
+    await renderRouter("src/app", { initialUrl: "/finder" });
 
     const container = screen.getByTestId("map-container");
     expect(container).toBeTruthy();
 
-    fireEvent(container, "layout", {
+    await fireEvent(container, "layout", {
       nativeEvent: { layout: { width: 500, height: 700 } },
     });
 
