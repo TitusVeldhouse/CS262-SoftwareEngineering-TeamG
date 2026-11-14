@@ -22,8 +22,6 @@ jest.mock("../components/FloorMapViewer", () => {
 
 describe("Finder screen - Core Navigation & Default State", () => {
   it("shows the first mocked location selected by default", async () => {
-    // Jump straight to "/finder" so this test doesn't depend on the landing
-    // screen's navigation working correctly.
     await renderRouter("src/app", { initialUrl: "/finder" });
 
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
@@ -76,16 +74,6 @@ describe("Finder screen - Core Navigation & Default State", () => {
     expect(screen.getAllByText(target.name).length).toBeGreaterThan(0);
   });
 
-  it("navigates back to the landing screen", async () => {
-    await renderRouter("src/app", { initialUrl: "/" });
-
-    // Go landing -> finder first, then verify the back button reverses it.
-    await fireEvent.press(screen.getByTestId("get-started-button"));
-    expect(screen.getByTestId("finder-screen")).toBeTruthy();
-
-    await fireEvent.press(screen.getByTestId("back-button"));
-    expect(screen.getByTestId("landing-screen")).toBeTruthy();
-  });
 });
 
 describe("Finder screen - Campus Map Rendering & Blueprint", () => {

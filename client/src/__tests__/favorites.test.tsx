@@ -195,9 +195,9 @@ describe("Favorites Side Collapsable Menu & Navigation Integration", () => {
       "highlights:1",
     );
 
-    // Go back to Landing screen and open Favorites side menu
+    // Return to the campus map and open the Favorites side menu
     await fireEvent.press(screen.getByTestId("room-search-back-button"));
-    expect(screen.getByTestId("landing-screen")).toBeTruthy();
+    expect(screen.getByTestId("finder-screen")).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId("favorites-menu-toggle"));
     const drawer = screen.getByTestId("favorites-drawer");

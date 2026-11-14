@@ -339,6 +339,19 @@ export default function RoomSearch() {
     setShowResults(false);
   };
 
+  const returnToPreviousScreen = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (selectedBuilding) {
+      router.replace({
+        pathname: "/",
+        params: { building: selectedBuilding.name },
+      });
+    } else {
+      router.replace("/");
+    }
+  };
+
   const selectRoomResult = (
     buildingName: string,
     floorLabel: string,
@@ -423,7 +436,13 @@ export default function RoomSearch() {
 
   return (
     <View style={styles.container} testID="room-search-screen">
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+          // A stack pop reverses this so the floor plan slides right on return.
+          animation: "slide_from_right",
+        }}
+      />
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -432,13 +451,7 @@ export default function RoomSearch() {
             accessibilityRole="button"
             accessibilityLabel="Go back"
             style={styles.backButton}
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/");
-              }
-            }}
+            onPress={returnToPreviousScreen}
           >
             <Text style={styles.backButtonText}>‹</Text>
           </Pressable>
@@ -601,7 +614,7 @@ export default function RoomSearch() {
                   ]}
                   onPress={() =>
                     router.push({
-                      pathname: "/finder",
+                      pathname: "/",
                       params: { building: selectedBuilding.name },
                     })
                   }
