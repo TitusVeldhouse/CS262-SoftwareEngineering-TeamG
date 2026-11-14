@@ -13,14 +13,8 @@ jest.mock("../components/FloorMapViewer", () => {
 });
 
 describe("End-to-End Campus & Indoor Map Navigation", () => {
-  it("Journey 1: Full user loop (Landing -> Campus Map -> Floor Plan -> Exit to Campus -> Landing)", async () => {
-    // 1. User arrives on Landing Page
+  it("Journey 1: Full user loop from the campus map through a floor plan and back", async () => {
     await renderRouter("src/app", { initialUrl: "/" });
-    expect(screen.getByTestId("landing-screen")).toBeTruthy();
-    expect(screen.getByText("Never get lost on campus again.")).toBeTruthy();
-
-    // 2. User presses 'Find a Room' CTA
-    await fireEvent.press(screen.getByTestId("get-started-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getByTestId("campus-map-scroll-vertical")).toBeTruthy();
 
@@ -46,62 +40,43 @@ describe("End-to-End Campus & Indoor Map Navigation", () => {
     await fireEvent.press(level3Option);
     expect(level3Option.props.accessibilityState.selected).toBe(true);
 
-    // 7. User exits back to the campus map
-    const exitBtn = screen.getByTestId("exit-to-campus-button");
-    expect(exitBtn).toBeTruthy();
-    await fireEvent.press(exitBtn);
+    // 7. User returns directly to the campus map
+    await fireEvent.press(screen.getByTestId("room-search-back-button"));
 
     // 8. User lands on Finder with Hiemenga Hall focused and can recenter on Quad
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
     expect(screen.getAllByText("Hiemenga Hall").length).toBeGreaterThan(0);
     await fireEvent.press(screen.getByTestId("center-map-button"));
-
-    // 9. User navigates back out through history
-    await fireEvent.press(screen.getByTestId("back-button"));
-    expect(screen.getByTestId("room-search-screen")).toBeTruthy();
-
-    await fireEvent.press(screen.getByTestId("room-search-back-button"));
-    expect(screen.getByTestId("finder-screen")).toBeTruthy();
-
-    await fireEvent.press(screen.getByTestId("back-button"));
-    expect(screen.getByTestId("landing-screen")).toBeTruthy();
   });
 
-  it("Journey 2: Menu search -> Building selection -> Multi-building transitions", async () => {
-    // 1. Start on Landing
+  it("Journey 2: Campus map -> Building selection -> Multi-building transitions", async () => {
     await renderRouter("src/app", { initialUrl: "/" });
 
-    // 2. Click 'Classroom & Room Search' feature card
-    await fireEvent.press(screen.getByTestId("classroom-search-feature"));
+    // Open Science Building from the campus map
+    await fireEvent.press(screen.getByTestId("pin-Science Building"));
+    await fireEvent.press(screen.getByTestId("enter-building-button"));
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
-
-    // 3. Search for Science Building
-    const searchInput = screen.getByTestId("building-search-input");
-    await fireEvent.changeText(searchInput, "Science");
-
-    const scienceOption = screen.getByTestId("building-option-Science Building");
-    await fireEvent.press(scienceOption);
 
     expect(screen.getByText("Science Building")).toBeTruthy();
 
-    // 4. Switch floors in Science Building
+    // Switch floors in Science Building
     const level1Option = screen.getByTestId("floor-option-Level 1");
     await fireEvent.press(level1Option);
     expect(level1Option.props.accessibilityState.selected).toBe(true);
 
-    // 5. Exit out to the Campus Map
+    // Exit to the Campus Map
     await fireEvent.press(screen.getByTestId("exit-to-campus-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
 
-    // 6. Select a different campus building (Devos Communication Building)
+    // Select a different campus building (Devos Communication Building)
     await fireEvent.press(screen.getByTestId("pin-Devos Communication Building"));
     await fireEvent.press(screen.getByTestId("enter-building-button"));
 
-    // 7. Verifies transition into Devos Communication Center floor plan
+    // Verify transition into Devos Communication Center floor plan
     expect(screen.getByTestId("room-search-screen")).toBeTruthy();
     expect(screen.getByText("Devos Communication Center")).toBeTruthy();
 
-    // 8. Exit back to campus map
+    // Exit back to campus map
     await fireEvent.press(screen.getByTestId("exit-to-campus-button"));
     expect(screen.getByTestId("finder-screen")).toBeTruthy();
   });

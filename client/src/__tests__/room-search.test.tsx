@@ -157,10 +157,11 @@ describe("Room search screen", () => {
     },
   );
 
-  it("safely navigates back to landing screen on back button press", async () => {
+  it("navigates directly to the campus map on back button press", async () => {
     await renderRouter("src/app", { initialUrl: "/room-search" });
 
     await fireEvent.press(screen.getByTestId("room-search-back-button"));
-    expect(screen.getByTestId("landing-screen")).toBeTruthy();
+    expect(screen.getByTestId("finder-screen")).toBeTruthy();
+    expect(screen.queryByTestId("room-search-screen")).toBeNull();
   });
 });

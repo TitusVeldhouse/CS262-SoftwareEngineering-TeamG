@@ -5,15 +5,14 @@ and points of interest on Calvin's campus. This is the CS 262 team's client-side
 
 ## Screens
 
-- **Landing** ([src/app/index.tsx](src/app/index.tsx)) — the introductory screen: app pitch
-  and a feature link to Room Search.
-- **Finder** ([src/app/finder.tsx](src/app/finder.tsx)) — the main data screen: a searchable
-  dropdown of campus locations, a toggleable list of points of interest (restrooms, printers,
-  water fountains, vending machines), and a mock map with pins. All data (locations and points
-  of interest) is hard-coded in `finder.tsx` for this prototype.
+- **Campus Map (home)** ([src/app/index.tsx](src/app/index.tsx)) — the default route, showing a
+  searchable dropdown of campus locations, a toggleable list of points of interest (restrooms,
+  printers, water fountains, vending machines), and a mock map with pins. `/finder` remains
+  available as a compatible route; map and point-of-interest data are in `src/app/finder.tsx`.
 - **Room Search** ([src/app/room-search.tsx](src/app/room-search.tsx)) — search campus buildings,
   select a floor, and inspect its zoomable floor map. The image and SVG overlay share the image's
-  pixel coordinates; the viewer accepts room-highlight polygons and route paths.
+  pixel coordinates; the viewer accepts room-highlight polygons and route paths. Its back and
+  exit controls return directly to the campus map.
 
 Floor-map PNGs and their dimension manifest are generated from the PDFs in
 `../calvin-map/Building & Campus Plans/Academic & Auxiliary Buildings`:
