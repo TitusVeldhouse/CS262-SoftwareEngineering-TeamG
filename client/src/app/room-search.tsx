@@ -307,6 +307,8 @@ export default function RoomSearch() {
   const academicBuildings = matchingBuildings
     .filter((building) => ACADEMIC_BUILDINGS.has(building.name))
     .sort(byName);
+  // Keep other campus structures available without mixing them into the
+  // shorter academic-building list.
   const otherBuildings = matchingBuildings
     .filter((building) => !ACADEMIC_BUILDINGS.has(building.name))
     .sort(byName);
@@ -475,6 +477,8 @@ export default function RoomSearch() {
           style={styles.searchInput}
           value={query}
           onChangeText={(value) => {
+            // Editing the search invalidates the previous building/floor
+            // choice; only an explicit result selection opens a plan again.
             setQuery(value);
             setSelectedBuilding(null);
             setSelectedFloor(null);
