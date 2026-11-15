@@ -1,6 +1,8 @@
 import {
   API_BASE_URL,
+  ApiConnectionError,
   ApiError,
+  REQUEST_TIMEOUT_MS,
   addAccountFavorite,
   clearAccountFavorites,
   fetchAccountFavorites,
@@ -46,10 +48,12 @@ describe("CalvinFinder API Client", () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         `${API_BASE_URL}/api/v1/buildings`,
-        {
+        expect.objectContaining({
           method: "GET",
           headers: { Accept: "application/json" },
-        },
+          // Every request carries an abort signal so it can time out.
+          signal: expect.anything(),
+        }),
       );
       expect(result).toEqual(mockBuildings);
     });
@@ -228,6 +232,43 @@ describe("CalvinFinder API Client", () => {
       await expect(fetchAccountFavorites("expired")).rejects.toBeInstanceOf(
         ApiError,
       );
+    });
+
+    it("reports an unreachable server with its address instead of a raw network error", async () => {
+      (globalThis.fetch as jest.Mock).mockRejectedValue(new TypeError("Network request failed"));
+
+      await expect(getBuildings()).rejects.toMatchObject({
+        name: "ApiConnectionError",
+        url: API_BASE_URL,
+        message: `Can't reach server at ${API_BASE_URL}.`,
+      });
+      // Account requests go through the same path.
+      await expect(
+        loginAccount({ email: "a@calvin.edu", password: "pw" }),
+      ).rejects.toBeInstanceOf(ApiConnectionError);
+    });
+
+    it("gives up and reports a timeout when the server never answers", async () => {
+      jest.useFakeTimers();
+      try {
+        // A fetch that only settles when it is aborted, like a phone that
+        // cannot reach the laptop at all.
+        (globalThis.fetch as jest.Mock).mockImplementation(
+          (_url: string, init: { signal: AbortSignal }) =>
+            new Promise((_resolve, reject) => {
+              init.signal.addEventListener("abort", () => reject(new Error("Aborted")));
+            }),
+        );
+
+        const pending = expect(getBuildings()).rejects.toMatchObject({
+          name: "ApiConnectionError",
+          message: expect.stringContaining("no response after"),
+        });
+        jest.advanceTimersByTime(REQUEST_TIMEOUT_MS);
+        await pending;
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("supports both ApiError constructor signatures", () => {
