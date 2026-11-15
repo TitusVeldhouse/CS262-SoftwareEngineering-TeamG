@@ -7,36 +7,18 @@
  */
 
 import type { FavoritePlace, NewFavoritePlace } from "../data/favorites";
+import { API_BASE_URL, API_V1_URL } from "../config/api";
 
-// Type declaration for Expo public environment variables.
-declare const process: {
-  env: {
-    EXPO_PUBLIC_API_URL?: string;
-  };
-};
+// The server address is decided in one place: src/config/api.ts.
+export { API_BASE_URL };
 
-const DEFAULT_API_URL = "http://localhost:3000";
-
-export const API_BASE_URL = (
-  typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
-    ? process.env.EXPO_PUBLIC_API_URL
-    : DEFAULT_API_URL
-)
-  .trim()
-  .replace(/\/+$/, "")
-  .replace(/\/api\/v1$/, "");
-
+/** Base URL including /api/v1, e.g. http://192.168.1.20:3000/api/v1 */
 export function getApiBaseUrl(): string {
-  const configured =
-    typeof process !== "undefined" && process.env
-      ? process.env.EXPO_PUBLIC_API_URL
-      : undefined;
-  if (configured && configured.trim().length > 0) {
-    const trimmed = configured.trim().replace(/\/+$/, "");
-    return trimmed.endsWith("/api/v1") ? trimmed : `${trimmed}/api/v1`;
-  }
-  return `${API_BASE_URL}/api/v1`;
+  return API_V1_URL;
 }
+
+/** How long to wait for the server before showing an error. */
+export const REQUEST_TIMEOUT_MS = 10000;
 
 // ---------------------------------------------
 // API TYPES
@@ -152,26 +134,59 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Thrown when the server could not be reached at all (wrong address, server
+ * not running, phone on a different network, or no answer before the timeout).
+ * This is different from ApiError, which means the server answered with an error.
+ */
+export class ApiConnectionError extends Error {
+  readonly url: string;
+
+  constructor(url: string, timedOut: boolean) {
+    super(
+      timedOut
+        ? `Can't reach server at ${url} (no response after ${REQUEST_TIMEOUT_MS / 1000} seconds).`
+        : `Can't reach server at ${url}.`,
+    );
+    this.name = "ApiConnectionError";
+    this.url = url;
+  }
+}
+
 // ---------------------------------------------
 // GENERIC HTTP REQUEST HELPERS
 // ---------------------------------------------
 
-async function get<T>(endpoint: string): Promise<T> {
-  let response: Response;
+/**
+ * fetch() with a time limit. Without one, a phone that cannot reach the laptop
+ * (for example on campus Wi-Fi) can sit on a request for a minute or more
+ * before failing. Network failures become an ApiConnectionError that names the
+ * server address, so the screen can show what went wrong.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
 
   try {
-    response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
+    return await fetch(url, { ...init, signal: controller.signal });
   } catch {
-    throw new Error(
-      `Unable to connect to the server at ${API_BASE_URL}. ` +
-        "Check that the backend is running and the API URL is correct.",
-    );
+    throw new ApiConnectionError(API_BASE_URL, timedOut);
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+async function get<T>(endpoint: string): Promise<T> {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
 
   let data: unknown;
 
@@ -224,7 +239,7 @@ async function requestJson<T>(
     headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await fetchWithTimeout(`${getApiBaseUrl()}${path}`, {
     method: options.method ?? "GET",
     headers,
     ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
