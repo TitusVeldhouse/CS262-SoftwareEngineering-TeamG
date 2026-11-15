@@ -16,5 +16,6 @@ module.exports = {
   testMatch: ['<rootDir>/e2e/**/*.e2e.test.ts'],
   globalSetup: '<rootDir>/e2e/global-setup.js',
   globalTeardown: '<rootDir>/e2e/global-teardown.js',
+  setupFilesAfterEnv: ['<rootDir>/e2e/setup.ts'],
   testTimeout: 15000,
 };
