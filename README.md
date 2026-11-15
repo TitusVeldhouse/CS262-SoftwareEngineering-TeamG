@@ -30,6 +30,10 @@ npm start
 # Run the test suite
 npm test
 
+# Run the end-to-end tests: the client's real API code against the real
+# server over HTTP (needs `npm install` in both client/ and server/)
+npm run test:e2e
+
 # Run linting
 npm run lint
 ```

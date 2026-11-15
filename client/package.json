@@ -53,6 +53,7 @@
     "lint": "expo lint",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:e2e": "jest --config jest.e2e.config.js",
     "render:floorplans": "node scripts/render-floorplans.mjs"
   },
   "private": true,
@@ -63,7 +64,8 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/example/"
+      "/example/",
+      "/e2e/"
     ]
   }
 }
