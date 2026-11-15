@@ -286,7 +286,8 @@ export default function Finder() {
   const apiStatusText = apiLoading
     ? "Loading campus data from server..."
     : apiError
-      ? "Server unavailable; campus map is shown from local data."
+      ? // apiError names the server address, e.g. "Can't reach server at http://192.168.1.20:3000."
+        `${apiError} Showing the campus map from local data.`
       : selectedApiBuilding
         ? `${selectedApiBuilding.name} loaded from server · ${selectedBuildingPoiCount} matching points of interest`
         : "This building is currently available in the local campus map only.";

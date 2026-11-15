@@ -197,7 +197,8 @@ export default function RoomSearch() {
     Record<string, string>
   >({});
   const [apiSearchLoading, setApiSearchLoading] = useState(false);
-  const [apiSearchUnavailable, setApiSearchUnavailable] = useState(false);
+  // Message shown when server search fails (it names the server address).
+  const [apiSearchError, setApiSearchError] = useState<string | null>(null);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -252,13 +253,13 @@ export default function RoomSearch() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setApiBuildingNames([]);
       setApiSearchLoading(false);
-      setApiSearchUnavailable(false);
+      setApiSearchError(null);
       return;
     }
 
     let cancelled = false;
     setApiSearchLoading(true);
-    setApiSearchUnavailable(false);
+    setApiSearchError(null);
 
     searchPlaces(normalizedQuery)
       .then((results) => {
@@ -267,10 +268,12 @@ export default function RoomSearch() {
           extractApiBuildingNames(results, apiBuildingNamesById),
         );
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) return;
         setApiBuildingNames([]);
-        setApiSearchUnavailable(true);
+        setApiSearchError(
+          error instanceof Error ? error.message : "Server search failed.",
+        );
       })
       .finally(() => {
         if (!cancelled) {
@@ -499,9 +502,9 @@ export default function RoomSearch() {
           </Text>
         )}
 
-        {showResults && apiSearchUnavailable && normalizedQuery.length >= 2 && (
+        {showResults && apiSearchError && normalizedQuery.length >= 2 && (
           <Text style={styles.apiSearchStatus} testID="api-search-fallback">
-            Server search unavailable. Showing the local campus catalog.
+            {apiSearchError} Showing the local campus catalog.
           </Text>
         )}
 
