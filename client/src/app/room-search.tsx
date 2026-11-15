@@ -746,6 +746,8 @@ export default function RoomSearch() {
               imageHeight={selectedFloor.height}
               title={`${selectedBuilding.name} ${selectedFloor.label}`}
               highlights={roomHighlights}
+              // Center the plan on the selected room (from search, favorites, or a tap).
+              focusPoint={selectedRoom?.coordinates ?? null}
             />
           </View>
         </>
