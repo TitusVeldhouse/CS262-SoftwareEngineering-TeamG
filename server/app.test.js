@@ -3,6 +3,14 @@ const app = require('./app');
 const { accountStore } = require('./accountStore');
 
 
+describe('GET /api/v1/health', () => {
+    it('reports that the server is up', async () => {
+        const res = await request(app).get('/api/v1/health');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ status: 'ok' });
+    });
+});
+
 describe('GET /api/v1/buildings', () => {
     it('Returns a list of the buildings', async () => {
         const res = await request(app).get('/api/v1/buildings');

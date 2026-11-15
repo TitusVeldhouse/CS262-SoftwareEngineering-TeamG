@@ -30,6 +30,12 @@ function requireAuth(req, res, next) {
   return next();
 }
 
+// GET a quick "is the server up?" check. Open it in a phone's browser
+// (http://<laptop-ip>:3000/api/v1/health) to test the connection without the app.
+app.get('/api/v1/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // GET all buildings
 app.get('/api/v1/buildings', (req, res) => {
   const result = buildingService.getAllBuildings();
