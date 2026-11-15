@@ -1,200 +1,169 @@
 import {
-  calculateMapFrame,
-  clampMapScale,
-  calculatePanLimits,
-  calculatePanLimitsFromDimensions,
-  calculateDynamicMinScale,
-  clampPanOffset,
+  calculateAxisBounds,
+  calculateFitScale,
+  calculateFitTransform,
+  calculateFocusTransform,
+  calculateScaleLimits,
+  calculateSettledTransform,
+  clamp,
+  clampTransform,
+  isWithinBounds,
   MAP_PADDING,
-  MIN_MAP_SCALE,
-  MAX_MAP_SCALE,
-  DEFAULT_PAN_MARGIN,
+  MAX_ZOOM,
+  rubberBand,
+  rubberBandTransform,
+  zoomAroundPoint,
 } from "../components/map-geometry";
 
-describe("Map Geometry & Pan Boundary Clamping", () => {
-  describe("calculateMapFrame", () => {
-    it("fits landscape image inside portrait viewport with padding", () => {
-      const frame = calculateMapFrame(1600, 800, 400, 600);
+// A landscape floor plan shown in a portrait phone-sized viewer.
+const plan = { width: 1600, height: 1000 };
+const phone = { width: 400, height: 700 };
 
-      // Available width is 400 - 56 = 344. Width scale = 344 / 1600 = 0.215.
-      // Available height is 600 - 56 = 544. Height scale = 544 / 800 = 0.68.
-      // Fit scale is min(0.215, 0.68) = 0.215.
-      expect(frame.width).toBeCloseTo(344);
-      expect(frame.height).toBeCloseTo(172);
-      expect(frame.left).toBeCloseTo((400 - 344) / 2);
-      expect(frame.top).toBeCloseTo((600 - 172) / 2);
+// Where a plan point ends up on screen: screen = x + point * scale.
+const toScreen = (t: { scale: number; x: number; y: number }, px: number, py: number) => [
+  t.x + px * t.scale,
+  t.y + py * t.scale,
+];
+
+describe("map geometry", () => {
+  describe("calculateFitScale / calculateFitTransform", () => {
+    it("fits the whole plan inside the padded viewer", () => {
+      const scale = calculateFitScale(plan, phone);
+      expect(scale).toBeCloseTo((400 - MAP_PADDING * 2) / 1600);
+      expect(plan.width * scale).toBeLessThanOrEqual(phone.width - MAP_PADDING * 2 + 0.001);
+      expect(plan.height * scale).toBeLessThanOrEqual(phone.height - MAP_PADDING * 2 + 0.001);
     });
 
-    it("handles zero or negative viewport safely", () => {
-      const frame = calculateMapFrame(1000, 500, 0, 0);
-      expect(frame.width).toBe(0);
-      expect(frame.height).toBe(0);
-      expect(frame.left).toBe(0);
-      expect(frame.top).toBe(0);
+    it("centers the fitted plan on both axes", () => {
+      const fit = calculateFitTransform(plan, phone);
+      const [left, top] = toScreen(fit, 0, 0);
+      const [right, bottom] = toScreen(fit, plan.width, plan.height);
+      expect(left).toBeCloseTo(phone.width - right);
+      expect(top).toBeCloseTo(phone.height - bottom);
     });
 
-    it("handles viewport smaller than padding without negative sizes", () => {
-      const frame = calculateMapFrame(1000, 500, 20, 20);
-      expect(frame.width).toBe(0);
-      expect(frame.height).toBe(0);
-      expect(frame.left).toBe(10);
-      expect(frame.top).toBe(10);
-    });
-
-    it("handles zero or negative image dimensions safely", () => {
-      const frameZeroW = calculateMapFrame(0, 500, 400, 600);
-      expect(frameZeroW.width).toBe(0);
-      expect(frameZeroW.height).toBe(0);
-
-      const frameZeroH = calculateMapFrame(500, 0, 400, 600);
-      expect(frameZeroH.width).toBe(0);
-      expect(frameZeroH.height).toBe(0);
-    });
-
-    it("correctly fits extremely tall portrait schematics", () => {
-      const frame = calculateMapFrame(400, 2000, 500, 700);
-      // available height is 700 - 56 = 644. Height scale = 644 / 2000 = 0.322.
-      // Width scale = (500 - 56) / 400 = 1.11.
-      // Fit scale is 0.322.
-      expect(frame.height).toBeCloseTo(644);
-      expect(frame.width).toBeCloseTo(400 * (644 / 2000));
-      expect(frame.top).toBeCloseTo(MAP_PADDING);
-    });
-
-    it("correctly fits extremely wide panoramic schematics", () => {
-      const frame = calculateMapFrame(3000, 500, 500, 700);
-      // available width is 500 - 56 = 444. Width scale = 444 / 3000 = 0.148.
-      // Height scale = (700 - 56) / 500 = 1.288.
-      // Fit scale is 0.148.
-      expect(frame.width).toBeCloseTo(444);
-      expect(frame.height).toBeCloseTo(500 * (444 / 3000));
-      expect(frame.left).toBeCloseTo(MAP_PADDING);
+    it("returns 0 until both sizes are known", () => {
+      expect(calculateFitScale(plan, { width: 0, height: 0 })).toBe(0);
+      expect(calculateFitScale({ width: 0, height: 900 }, phone)).toBe(0);
     });
   });
 
-  describe("calculateDynamicMinScale", () => {
-    it("returns 0.3 for extra large blueprints with dimension >= 1500", () => {
-      // DC AND BU (1982x1378)
-      expect(calculateDynamicMinScale(1982, 1378)).toBe(0.3);
-      // Devries Hall (1570x1064)
-      expect(calculateDynamicMinScale(1570, 1064)).toBe(0.3);
-      // Tall building (1000x1600)
-      expect(calculateDynamicMinScale(1000, 1600)).toBe(0.3);
-    });
-
-    it("returns MIN_MAP_SCALE (0.5) for standard and smaller blueprints", () => {
-      // Hiemenga Hall (1287x1058)
-      expect(calculateDynamicMinScale(1287, 1058)).toBe(MIN_MAP_SCALE);
-      // Compact blueprint (781x742)
-      expect(calculateDynamicMinScale(781, 742)).toBe(MIN_MAP_SCALE);
+  describe("calculateScaleLimits", () => {
+    it("runs from fit-to-screen up to MAX_ZOOM times that", () => {
+      const limits = calculateScaleLimits(plan, phone);
+      expect(limits.min).toBeCloseTo(calculateFitScale(plan, phone));
+      expect(limits.max).toBeCloseTo(limits.min * MAX_ZOOM);
     });
   });
 
-  describe("clampMapScale", () => {
-    it("clamps scale within MIN_MAP_SCALE and MAX_MAP_SCALE by default", () => {
-      expect(clampMapScale(0.1)).toBe(MIN_MAP_SCALE);
-      expect(clampMapScale(10)).toBe(MAX_MAP_SCALE);
-      expect(clampMapScale(2.5)).toBe(2.5);
+  describe("calculateAxisBounds", () => {
+    it("allows exactly one (centered) position when the plan is smaller than the viewer", () => {
+      expect(calculateAxisBounds(1000, 0.3, 700)).toEqual({ min: 200, max: 200 });
     });
 
-    it("clamps scale using custom dynamic minScale", () => {
-      expect(clampMapScale(0.2, 0.3, 5)).toBe(0.3);
-      expect(clampMapScale(0.4, 0.3, 5)).toBe(0.4);
+    it("lets the plan move until its edges meet the viewer's edges when larger", () => {
+      // 1600px * 0.5 = 800px wide in a 400px viewer: x from -400 (right edges meet) to 0.
+      expect(calculateAxisBounds(1600, 0.5, 400)).toEqual({ min: -400, max: 0 });
     });
   });
 
-  describe("clampPanOffset", () => {
-    it("clamps values between min and max bounds", () => {
-      expect(clampPanOffset(50, -100, 100)).toBe(50);
-      expect(clampPanOffset(-250, -100, 100)).toBe(-100);
-      expect(clampPanOffset(300, -100, 100)).toBe(100);
+  describe("clampTransform", () => {
+    it("pulls a dragged-off plan back so no empty space shows at the edge", () => {
+      // At scale 0.5 the plan is 800 x 500 in a 400 x 700 viewer: it is wider
+      // than the viewer (x may go from -400 to 0) but shorter (y must center at 100).
+      const clamped = clampTransform({ scale: 0.5, x: 120, y: -900 }, plan, phone);
+      expect(clamped).toEqual({ scale: 0.5, x: 0, y: 100 });
+      expect(isWithinBounds(clamped, plan, phone)).toBe(true);
+    });
+
+    it("keeps a small plan centered on the axis where it fits", () => {
+      const fitScale = calculateFitScale(plan, phone);
+      const clamped = clampTransform({ scale: fitScale, x: 50, y: 0 }, plan, phone);
+      expect(clamped.x).toBeCloseTo((phone.width - plan.width * fitScale) / 2);
+      expect(clamped.y).toBeCloseTo((phone.height - plan.height * fitScale) / 2);
     });
   });
 
-  describe("calculatePanLimits", () => {
-    const mockFrame = {
-      width: 360,
-      height: 240,
-      left: 20,
-      top: 180,
-    };
-    const viewportW = 400;
-    const viewportH = 600;
-
-    it("calculates generous bounds when image fits inside viewport (scale <= 1)", () => {
-      // At scale = 1, scaledW = 360, scaledH = 240. Margin = 50.
-      // maxTx = Math.max(50, (360 + 400) / 2 - 50) = 380 - 50 = 330
-      // maxTy = Math.max(50, (240 + 600) / 2 - 50) = 420 - 50 = 370
-      const limits = calculatePanLimits(mockFrame, 1.0, viewportW, viewportH, 50);
-
-      expect(limits.minX).toBe(-330);
-      expect(limits.maxX).toBe(330);
-      expect(limits.minY).toBe(-370);
-      expect(limits.maxY).toBe(370);
+  describe("rubberBand", () => {
+    it("leaves values inside the range alone", () => {
+      expect(rubberBand(5, 0, 10, 100)).toBe(5);
     });
 
-    it("expands pan boundaries proportionally when zoomed in (scale > 1)", () => {
-      // At scale = 2.0, scaledW = 720, scaledH = 480. Margin = 50.
-      // maxTx = Math.max(50, (720 + 400) / 2 - 50) = 560 - 50 = 510
-      // maxTy = Math.max(50, (480 + 600) / 2 - 50) = 540 - 50 = 490
-      const limits = calculatePanLimits(mockFrame, 2.0, viewportW, viewportH, 50);
-
-      expect(limits.minX).toBe(-510);
-      expect(limits.maxX).toBe(510);
-      expect(limits.minY).toBe(-490);
-      expect(limits.maxY).toBe(490);
+    it("resists past the edge and never goes further than the limit", () => {
+      const slightly = rubberBand(-50, 0, 10, 100);
+      const far = rubberBand(-5000, 0, 10, 100);
+      expect(slightly).toBeLessThan(0);
+      expect(slightly).toBeGreaterThan(-50);
+      expect(far).toBeGreaterThan(-100);
+      expect(far).toBeLessThan(slightly);
+      expect(rubberBand(60, 0, 10, 100)).toBeLessThan(60);
     });
 
-    it("allows full multidirectional navigation when both dimensions exceed viewport", () => {
-      // At scale = 3.0, scaledW = 1080, scaledH = 720. Margin = 40.
-      // maxTx = Math.max(40, (1080 + 400) / 2 - 40) = 740 - 40 = 700
-      // maxTy = Math.max(40, (720 + 600) / 2 - 40) = 660 - 40 = 620
-      const limits = calculatePanLimits(mockFrame, 3.0, viewportW, viewportH, 40);
+    it("applies to both axes of a transform", () => {
+      const banded = rubberBandTransform({ scale: 0.5, x: 300, y: 0 }, plan, phone);
+      expect(banded.x).toBeGreaterThan(0);
+      expect(banded.x).toBeLessThan(300);
+    });
+  });
 
-      expect(limits.minX).toBe(-700);
-      expect(limits.maxX).toBe(700);
-      expect(limits.minY).toBe(-620);
-      expect(limits.maxY).toBe(620);
+  describe("zoomAroundPoint", () => {
+    it("keeps the plan point under the fingers in the same screen spot", () => {
+      const start = { scale: 0.5, x: -100, y: -50 };
+      const focal = [180, 260] as const;
+      const planPointX = (focal[0] - start.x) / start.scale;
+      const planPointY = (focal[1] - start.y) / start.scale;
+
+      const zoomed = zoomAroundPoint(start, 1.25, focal[0], focal[1]);
+      const [screenX, screenY] = toScreen(zoomed, planPointX, planPointY);
+      expect(zoomed.scale).toBe(1.25);
+      expect(screenX).toBeCloseTo(focal[0]);
+      expect(screenY).toBeCloseTo(focal[1]);
+    });
+  });
+
+  describe("calculateFocusTransform", () => {
+    it("centers the room at the requested zoom", () => {
+      const room = [800, 500] as const; // middle of the plan
+      const focused = calculateFocusTransform(room[0], room[1], 2.5, plan, phone);
+      const [screenX, screenY] = toScreen(focused, room[0], room[1]);
+      expect(focused.scale).toBeCloseTo(calculateFitScale(plan, phone) * 2.5);
+      expect(screenX).toBeCloseTo(phone.width / 2);
+      expect(screenY).toBeCloseTo(phone.height / 2);
     });
 
-    it("maintains symmetric pan bounds centered around origin", () => {
-      const limits = calculatePanLimits(mockFrame, 1.8, viewportW, viewportH, 60);
-      expect(limits.minX).toBe(-limits.maxX);
-      expect(limits.minY).toBe(-limits.maxY);
+    it("keeps the plan's edges on screen for a room in a corner", () => {
+      const focused = calculateFocusTransform(0, 0, 2.5, plan, phone);
+      expect(isWithinBounds(focused, plan, phone)).toBe(true);
     });
 
-    it("safely handles zero dimensions without crashing", () => {
-      const limits = calculatePanLimits(mockFrame, 1.0, 0, 0, 50);
-      expect(limits.minX).toBe(-50);
-      expect(limits.maxX).toBe(50);
-      expect(limits.minY).toBe(-50);
-      expect(limits.maxY).toBe(50);
+    it("never zooms past MAX_ZOOM", () => {
+      const limits = calculateScaleLimits(plan, phone);
+      expect(calculateFocusTransform(800, 500, 50, plan, phone).scale).toBeCloseTo(limits.max);
+    });
+  });
+
+  describe("calculateSettledTransform", () => {
+    it("springs back to fit after pinching smaller than fit", () => {
+      const fit = calculateFitTransform(plan, phone);
+      const tooSmall = { scale: fit.scale * 0.8, x: 90, y: 300 };
+      const settled = calculateSettledTransform(tooSmall, 200, 350, plan, phone);
+      expect(settled.scale).toBeCloseTo(fit.scale);
+      expect(settled.x).toBeCloseTo(fit.x);
+      expect(settled.y).toBeCloseTo(fit.y);
     });
 
-    it("dynamically computes pan margin when margin parameter is omitted", () => {
-      // For DC AND BU (1982x1378) at scale 1.0 in a 400x600 viewport:
-      // dynamicMarginX = Math.max(40, Math.min(400 * 0.12, 1982 * 0.1, 80)) = Math.max(40, 48) = 48
-      // dynamicMarginY = Math.max(40, Math.min(600 * 0.12, 1378 * 0.1, 80)) = Math.max(40, 72) = 72
-      // maxTx = Math.max(48, (1982 + 400) / 2 - 48) = 1191 - 48 = 1143
-      // maxTy = Math.max(72, (1378 + 600) / 2 - 72) = 989 - 72 = 917
-      const limitsLarge = calculatePanLimitsFromDimensions(1982, 1378, 1.0, 400, 600);
-      expect(limitsLarge.maxX).toBe(1143);
-      expect(limitsLarge.minX).toBe(-1143);
-      expect(limitsLarge.maxY).toBe(917);
-      expect(limitsLarge.minY).toBe(-917);
-
-      // Compare with smaller map (e.g., 600x400):
-      // dynamicMarginX = Math.max(40, Math.min(48, 60, 80)) = 48
-      // dynamicMarginY = Math.max(40, Math.min(72, 40, 80)) = 40
-      // maxTx = Math.max(48, (600 + 400) / 2 - 48) = 500 - 48 = 452
-      // maxTy = Math.max(40, (400 + 600) / 2 - 40) = 500 - 40 = 460
-      const limitsSmall = calculatePanLimitsFromDimensions(600, 400, 1.0, 400, 600);
-      expect(limitsSmall.maxX).toBe(452);
-      expect(limitsSmall.maxY).toBe(460);
-      // Limits dynamically scale so larger blueprints have wider reach
-      expect(limitsLarge.maxX).toBeGreaterThan(limitsSmall.maxX);
-      expect(limitsLarge.maxY).toBeGreaterThan(limitsSmall.maxY);
+    it("comes back down to MAX_ZOOM after over-pinching, staying in bounds", () => {
+      const limits = calculateScaleLimits(plan, phone);
+      const tooBig = { scale: limits.max * 1.2, x: -2000, y: -1500 };
+      const settled = calculateSettledTransform(tooBig, 200, 350, plan, phone);
+      expect(settled.scale).toBeCloseTo(limits.max);
+      expect(isWithinBounds(settled, plan, phone)).toBe(true);
     });
+  });
+
+  it("clamp keeps a value inside a range", () => {
+    expect(clamp(5, 0, 3)).toBe(3);
+    expect(clamp(-1, 0, 3)).toBe(0);
+    expect(clamp(2, 0, 3)).toBe(2);
   });
 });
-

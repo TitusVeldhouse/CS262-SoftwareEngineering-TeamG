@@ -1,10 +1,10 @@
 import { renderRouter, screen, fireEvent } from "expo-router/testing-library";
 import { BUILDINGS } from "../data/room-search-data";
 import {
-  clampMapScale,
-  calculateMapFrame,
+  calculateFitTransform,
+  calculateScaleLimits,
   MAP_PADDING,
-  MIN_MAP_SCALE,
+  MAX_ZOOM,
 } from "../components/map-geometry";
 
 jest.mock("../data/room-search-data", () => ({
@@ -51,19 +51,24 @@ describe("Room search screen", () => {
     [357, 520],
     [1080, 700],
   ])("fits and centers the full map in a %ix%ipx viewport", (width, height) => {
-    const frame = calculateMapFrame(1584, 1224, width, height);
+    const content = { width: 1584, height: 1224 };
+    const fit = calculateFitTransform(content, { width, height });
+    const shownWidth = content.width * fit.scale;
+    const shownHeight = content.height * fit.scale;
 
-    expect(frame.width).toBeLessThanOrEqual(width - MAP_PADDING * 2 + 0.01);
-    expect(frame.height).toBeLessThanOrEqual(height - MAP_PADDING * 2 + 0.01);
-    expect(frame.left).toBeCloseTo((width - frame.width) / 2);
-    expect(frame.top).toBeCloseTo((height - frame.height) / 2);
-    expect(frame.width / frame.height).toBeCloseTo(1584 / 1224, 5);
+    expect(shownWidth).toBeLessThanOrEqual(width - MAP_PADDING * 2 + 0.01);
+    expect(shownHeight).toBeLessThanOrEqual(height - MAP_PADDING * 2 + 0.01);
+    expect(fit.x).toBeCloseTo((width - shownWidth) / 2);
+    expect(fit.y).toBeCloseTo((height - shownHeight) / 2);
   });
 
-  it("allows zooming out below fit without losing the reset scale", () => {
-    expect(clampMapScale(1 / 1.5)).toBeCloseTo(1 / 1.5);
-    expect(clampMapScale(0.25)).toBe(MIN_MAP_SCALE);
-    expect(clampMapScale(1)).toBe(1);
+  it("never zooms out past fit-to-screen and caps zoom-in at MAX_ZOOM", () => {
+    const content = { width: 1584, height: 1224 };
+    const viewport = { width: 357, height: 520 };
+    const limits = calculateScaleLimits(content, viewport);
+
+    expect(limits.min).toBeCloseTo(calculateFitTransform(content, viewport).scale);
+    expect(limits.max).toBeCloseTo(limits.min * MAX_ZOOM);
   });
 
   it("lists academic buildings alphabetically before auxiliary buildings", async () => {
