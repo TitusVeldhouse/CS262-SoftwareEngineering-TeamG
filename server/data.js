@@ -12,7 +12,6 @@ const buildings = [
     aliases: [],
     campus_x: 25.7,
     campus_y: 54.6,
-    isParkingLot: false,
     floors: [
       { level: 0, label: 'Level 0', rooms: ['SB 001', 'SB 002', 'SB 003'] },
       { level: 1, label: 'Level 1', rooms: ['SB 101', 'SB 102', 'SB 103'] },
@@ -28,7 +27,6 @@ const buildings = [
     aliases: ['Library', 'Hekman'],
     campus_x: 31.2,
     campus_y: 62.3,
-    isParkingLot: false,
     floors: [
       { level: 1, label: 'Level 1', rooms: ['HL 101', 'HL 102', 'HL 103'] },
       { level: 2, label: 'Level 2', rooms: ['HL 201', 'HL 202', 'HL 203'] },
@@ -44,7 +42,6 @@ const buildings = [
     aliases: ['Hiemenga'],
     campus_x: 28.3,
     campus_y: 64.1,
-    isParkingLot: false,
     floors: [
       { level: 2, label: 'Level 2', rooms: ['HH 211', 'HH 213', 'HH 221', 'HH 230', 'HH 235'] },
       { level: 3, label: 'Level 3', rooms: ['HH 311', 'HH 323'] },
@@ -59,7 +56,6 @@ const buildings = [
     aliases: ['CFAC'],
     campus_x: 37.4,
     campus_y: 58.1,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: ['CFAC 100', 'CFAC 115'] }],
   },
   {
@@ -70,7 +66,6 @@ const buildings = [
     aliases: ['Spoelhof Center', 'SUC'],
     campus_x: 24.2,
     campus_y: 63.3,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: ['SUC 110', 'SUC 120'] }],
   },
   {
@@ -81,7 +76,6 @@ const buildings = [
     aliases: ['Fieldhouse', 'SFH'],
     campus_x: 23.8,
     campus_y: 39.7,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: ['SFH 100', 'SFH 120'] }],
   },
   {
@@ -92,7 +86,6 @@ const buildings = [
     aliases: ['Devos Communication Building', 'DCC'],
     campus_x: 46.6,
     campus_y: 61.8,
-    isParkingLot: false,
     floors: [
       { level: 0, label: 'Level 0', rooms: ['DCC 010'] },
       { level: 1, label: 'Level 1', rooms: ['DCC 110'] },
@@ -107,7 +100,6 @@ const buildings = [
     aliases: ['DeVries Hall'],
     campus_x: 23.5,
     campus_y: 55.0,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: [] }],
   },
   {
@@ -118,7 +110,6 @@ const buildings = [
     aliases: [],
     campus_x: 26.6,
     campus_y: 51.8,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: [] }],
   },
   {
@@ -129,7 +120,6 @@ const buildings = [
     aliases: ['Loft', 'Calvin Chapel'],
     campus_x: 27.4,
     campus_y: 66.5,
-    isParkingLot: false,
     floors: [
       { level: 1, label: 'Level 1', rooms: ['CHP 100', 'CHP 105'] },
       { level: 2, label: 'Level 2', rooms: ['CHP 200'] },
@@ -143,7 +133,6 @@ const buildings = [
     aliases: [],
     campus_x: 32.5,
     campus_y: 58.7,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: [] }],
   },
   {
@@ -154,7 +143,6 @@ const buildings = [
     aliases: ['Commons Dining'],
     campus_x: 32.8,
     campus_y: 56.5,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: ['COM 100', 'COM 110'] }],
   },
   {
@@ -165,7 +153,6 @@ const buildings = [
     aliases: ['Bunker'],
     campus_x: null,
     campus_y: null,
-    isParkingLot: false,
     floors: [{ level: 1, label: 'Level 1', rooms: ['BIC 101'] }],
   },
 ];
