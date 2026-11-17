@@ -36,7 +36,7 @@ select columns_are('public', 'points_of_interest',
   array['id', 'floor_id', 'type', 'label', 'x', 'y', 'created_at'],
   'points_of_interest has the expected columns');
 select columns_are('public', 'favorites',
-  array['id', 'user_id', 'room_id', 'poi_id', 'created_at'],
+  array['id', 'user_id', 'room_id', 'poi_id', 'created_at', 'building_id', 'floor_id', 'poi_type'],
   'favorites has the expected columns');
 
 -- Enum values must match what the client sends and displays --------------------

@@ -8,7 +8,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(25);
+select plan(33);
 
 -- Setup (as the database owner) ----------------------------------------------
 -- Signing up inserts into auth.users; the trigger should create each profile.
@@ -108,12 +108,60 @@ select throws_ok(
   $$ insert into public.favorites (user_id)
      values ('00000000-0000-0000-0000-0000000000a1') $$,
   '23514', null,
-  'a favorite must point at a room or a POI');
+  'a favorite must point at something (room, POI, building, floor, or POI type)');
 select throws_ok(
   $$ insert into public.favorites (user_id, room_id)
      values ('00000000-0000-0000-0000-0000000000a1', -1) $$,
   '23503', null,
   'a favorite cannot point at a room that does not exist');
+
+-- Building, floor, and POI-type favorites (added by the
+-- widen_favorites_targets migration).
+select lives_ok(
+  $$ insert into public.favorites (user_id, building_id)
+     select '00000000-0000-0000-0000-0000000000a1', id
+     from public.buildings where name = 'Hiemenga Hall' $$,
+  'Alice can favorite a building');
+select lives_ok(
+  $$ insert into public.favorites (user_id, floor_id)
+     select '00000000-0000-0000-0000-0000000000a1', f.id
+     from public.floors f join public.buildings b on b.id = f.building_id
+     where b.name = 'Hiemenga Hall' and f.level = 2 $$,
+  'Alice can favorite a floor');
+select lives_ok(
+  $$ insert into public.favorites (user_id, poi_type)
+     values ('00000000-0000-0000-0000-0000000000a1', 'printer') $$,
+  'Alice can favorite a POI type (all printers)');
+select throws_ok(
+  $$ insert into public.favorites (user_id, building_id)
+     select '00000000-0000-0000-0000-0000000000a1', id
+     from public.buildings where name = 'Hiemenga Hall' $$,
+  '23505', null,
+  'Alice cannot favorite the same building twice');
+select throws_ok(
+  $$ insert into public.favorites (user_id, floor_id)
+     select '00000000-0000-0000-0000-0000000000a1', f.id
+     from public.floors f join public.buildings b on b.id = f.building_id
+     where b.name = 'Hiemenga Hall' and f.level = 2 $$,
+  '23505', null,
+  'Alice cannot favorite the same floor twice');
+select throws_ok(
+  $$ insert into public.favorites (user_id, poi_type)
+     values ('00000000-0000-0000-0000-0000000000a1', 'printer') $$,
+  '23505', null,
+  'Alice cannot favorite the same POI type twice');
+select throws_ok(
+  $$ insert into public.favorites (user_id, building_id, floor_id)
+     values ('00000000-0000-0000-0000-0000000000a1',
+             (select min(id) from public.buildings),
+             (select min(id) from public.floors)) $$,
+  '23514', null,
+  'a favorite cannot point at both a building and a floor');
+select lives_ok(
+  $$ delete from public.favorites
+     where building_id is not null or floor_id is not null or poi_type is not null $$,
+  'Alice can remove her building, floor, and POI type favorites');
+
 select throws_ok(
   $$ insert into public.favorites (user_id, room_id)
      select '00000000-0000-0000-0000-0000000000b2', id
