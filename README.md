@@ -42,5 +42,12 @@ npm install
 npx expo start
 ```
 
+## Server and database
+
+The Express API lives in [server/](server/) and reads campus data from the Supabase
+database in [supabase/](supabase/). See [server/README.md](server/README.md) for setup
+(Docker, `npx supabase start`, and `server/.env`) and
+[supabase/README.md](supabase/README.md) for the schema and seed data.
+
 ## User Stories
 User stories and software requirements specification can be accessed as pdfs in /docs

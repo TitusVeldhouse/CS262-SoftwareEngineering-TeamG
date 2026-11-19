@@ -30,14 +30,18 @@ function requireAuth(req, res, next) {
   return next();
 }
 
+// Campus data routes read from Supabase, so their handlers are async. If a
+// database call fails, Express 5 passes the error to the JSON error handler at
+// the bottom of this file, which answers 500.
+
 // GET all buildings
-app.get('/api/v1/buildings', (req, res) => {
-  const result = buildingService.getAllBuildings();
+app.get('/api/v1/buildings', async (req, res) => {
+  const result = await buildingService.getAllBuildings();
   res.json(result);
 });
 
 // GET one building including its rooms and floors
-app.get('/api/v1/buildings/:id', (req, res) => {
+app.get('/api/v1/buildings/:id', async (req, res) => {
   const id = Number(req.params.id);
 
   if (!Number.isInteger(id)) {
@@ -46,7 +50,7 @@ app.get('/api/v1/buildings/:id', (req, res) => {
     });
   }
 
-  const building = buildingService.getBuildingById(id);
+  const building = await buildingService.getBuildingById(id);
 
   if (!building) {
     return res.status(404).json({
@@ -58,16 +62,16 @@ app.get('/api/v1/buildings/:id', (req, res) => {
 });
 
 // GET points of interest and filter by type
-app.get('/api/v1/points-of-interest', (req, res) => {
+app.get('/api/v1/points-of-interest', async (req, res) => {
   const { type } = req.query;
 
-  const result = pointOfInterestService.getPointsOfInterestByType(type);
+  const result = await pointOfInterestService.getPointsOfInterestByType(type);
 
   res.json(result);
 });
 
 // GET global search
-app.get('/api/v1/search', (req, res) => {
+app.get('/api/v1/search', async (req, res) => {
   const { q } = req.query;
 
   if (typeof q !== 'string' || q.trim() === '') {
@@ -76,7 +80,7 @@ app.get('/api/v1/search', (req, res) => {
     });
   }
 
-  const results = searchService.searchAll(q);
+  const results = await searchService.searchAll(q);
 
   res.json(results);
 });

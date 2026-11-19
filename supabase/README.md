@@ -7,6 +7,7 @@ the schema, the seed data, and the script that generates the seed data.
 supabase/
   config.toml                              Supabase CLI settings (from `npx supabase init`)
   migrations/20261112224954_initial_schema.sql   tables, view, search function, security rules
+  migrations/20261117170000_widen_favorites_targets.sql   building, floor, and POI-type favorites
   seed.sql                                 starting data (GENERATED; do not edit by hand)
   scripts/generate-seed.mjs                builds seed.sql from the client/server data files
   tests/database/*.test.sql                pgTAP tests run by `npx supabase test db`
@@ -79,7 +80,7 @@ npx supabase test db    # runs every file in supabase/tests/
 | `01_schema.test.sql` | The tables, columns, enums, view, and function the client relies on exist with the right shape. RLS is on for every table. The client roles can call search. |
 | `02_public_campus_data.test.sql` | Signed-out and signed-in users can read campus data (including joined building → floor → room reads) but cannot add, change, or delete it. |
 | `03_search.test.sql` | `search_locations` finds buildings, rooms, and POIs. It ignores case and surrounding spaces, matches aliases, orders results, returns nothing for blank input, treats `%` literally, and caps results at 50. |
-| `04_profiles_and_favorites.test.sql` | Sign-up creates a profile. Users can edit only their own profile. Favorites can be added, listed, and removed only by their owner. The favorite rules hold (one target, no duplicates, the target must exist). Deleting a user removes their data. |
+| `04_profiles_and_favorites.test.sql` | Sign-up creates a profile. Users can edit only their own profile. Favorites can be added, listed, and removed only by their owner. The favorite rules hold for every target kind (exactly one target, no duplicates, the target must exist). Deleting a user removes their data. |
 
 When you change the schema, add or update a test in the matching file. If you change
 seed data that a test names (for example Hiemenga Hall or room `HH-211`), update the test too.
@@ -94,7 +95,7 @@ seed data that a test names (for example Hiemenga Hall or room `HH-211`), update
 | `rooms` | Rooms | Room number, name, `room_type`, aliases, and pixel position on the floor plan. |
 | `points_of_interest` | POIs | Restrooms, printers, water fountains, and so on. Each one is on a floor. |
 | `profiles` | Accounts | One row per signed-up user (created automatically on sign-up). The "User" box is Supabase's own `auth.users`. |
-| `favorites` | Favorite List | One saved room **or** POI per row. A user's favorite list is all of their rows. |
+| `favorites` | Favorite List | One saved target per row: a room, a POI, a building, a floor, **or** a POI type (for example "all printers"). Exactly one of `room_id`, `poi_id`, `building_id`, `floor_id`, `poi_type` is filled in. A user's favorite list is all of their rows. |
 
 Hierarchy: `campus_map` → `buildings` → `floors` → `rooms` / `points_of_interest`.
 Deleting a parent deletes its children.
